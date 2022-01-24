@@ -24,7 +24,9 @@ from collections import OrderedDict
 import numpy as np
 import sys
 import os
+import torch
 
+from ne16 import ne16_conv1x1_unroll
 
 def print_file_list(x):
     # This function is used to generate a string with all input files.
@@ -599,7 +601,8 @@ def print_template_layer(x, y_gold, W,
                          sdk = 'gap_sdk',
                          backend = 'MCU',
                          number_of_clusters = 1,
-                         dma_parallelization = '8-cores'
+                         dma_parallelization = '8-cores',
+                         nnx = False
                          ):
     # Generate the Layer management c file.
     if type_data == 'float':
@@ -853,14 +856,18 @@ def print_template_layer(x, y_gold, W,
     tk['buffer_l1_all'] = buffer_l1_all
     l2_dim_input = (n_in) * tk['x_h'] * tk['x_w']
     l2_dim_output = (tk['nof']) * tk['y_h'] * tk['y_w']
-    if DW == 0:
+    if DW == 0 and not nnx:
         l2_dim_weights = int(tk['nof'] * tk['nif'] * tk['fs1'] * tk['fs2'] * ds_W / 8.0)
-    else:
+    elif not nnx:
         l2_dim_weights = int(tk['nof'] * 1 * tk['fs1'] * tk['fs2'] * ds_W / 8.0)
+    else:
+        l2_dim_weights = int(ne16_conv1x1_unroll(torch.zeros(tk['nof'], tk['fs1'], tk['fs2'], tk['nif'], dtype=torch.int64), ds_W).shape[0])
     l2_dim_k = k_buffer_size
     l2_dim_lambda = lambd_buffer_size
     root = '/'.join(os.getcwd().split('/')[:-1])
-    if conv_order == 'PULP-NN':
+    if nnx:
+        tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/layer_template_nnx.c")
+    elif conv_order == 'PULP-NN':
         tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/layer_template.c")
     elif conv_order == 'PULP-NN-MAX':
         if(optional_type == '1D_Conv'):

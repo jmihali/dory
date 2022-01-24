@@ -71,6 +71,28 @@ class Model_deployment_MCU(Model_deployment):
             layer_mixed_list.append('pulp_nn_maxpool_u4.c')
             layer_mixed_list.append('pulp_nn_avgpool_u2.c')
             layer_mixed_list.append('pulp_nn_maxpool_u2.c')
+        if 'nnx' in optional:
+            for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
+                BitIn = PULP_Nodes_Graph[i].input_activation_bits
+                BitOut = PULP_Nodes_Graph[i].out_activation_bits
+                if ('Pool' not in PULP_Nodes_Graph[i].name) and ('Add' not in PULP_Nodes_Graph[i].name):
+                    BitW = PULP_Nodes_Graph[i].weight_bits
+                if 'DW' in PULP_Nodes_Graph[i].name:
+                    layer_mixed_list.append(f'pulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
+                elif 'Conv' in PULP_Nodes_Graph[i].name:
+                    layer_mixed_list.append(f'pulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
+                if ('Conv' in PULP_Nodes_Graph[i].name or 'Gemm' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name) and BitOut!=32:
+                    layer_mixed_list.append(f'pulp_nn_matmul_u{BitOut}_i{BitW}.c')
+                if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
+                    layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
+            layer_mixed_list.append('pulp_nn_add_u8_u8.c')
+            layer_mixed_list.append('pulp_nn_avgpool_u8.c')
+            layer_mixed_list.append('pulp_nn_maxpool_u8.c')
+            layer_mixed_list.append('pulp_nn_avgpool_u4.c')
+            layer_mixed_list.append('pulp_nn_maxpool_u4.c')
+            layer_mixed_list.append('pulp_nn_avgpool_u2.c')
+            layer_mixed_list.append('pulp_nn_maxpool_u2.c')
+            layer_mixed_list.append('pulp_nnx_pointwise.c')
         if 'mixed-hw' in optional:
             for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
                 BitIn = PULP_Nodes_Graph[i].input_activation_bits
@@ -174,6 +196,28 @@ class Model_deployment_MCU(Model_deployment):
                     os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/Pooling/MaxPool/' + layer + ' ./application/DORY_network/src/')
                 elif layer.split('_')[2] == 'add':
                     os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/Add/' + layer + ' ./application/DORY_network/src/')
+        elif "nnx" in optional:
+            os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/include/*  ./application/DORY_network/inc/')
+            os.system('cp ../pulp-nnx/ne16_hal/inc/* ./application/DORY_network/inc/')
+            os.system('cp ../pulp-nnx/include/* ./application/DORY_network/inc/')
+            for layer in layer_mixed_list:
+                if layer.split('_')[2] == 'conv':
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Convolution/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'depthwise':
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Depthwise/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'matmul':
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/MatrixMultiplication/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'linear':
+                    if layer.split('_')[4] == 'i32':
+                        os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/LinearNoQuant/' + layer + ' ./application/DORY_network/src/')
+                    else:
+                        os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/LinearQuant/' + layer + ' ./application/DORY_network/src/')
+                elif 'avgpool' in layer.split('_')[2]:
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Pooling/AvgPool/' + layer + ' ./application/DORY_network/src/')
+                elif 'maxpool' in layer.split('_')[2]:
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Pooling/MaxPool/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'add':
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Add/' + layer + ' ./application/DORY_network/src/')
 
     def create_weights_files(self, PULP_Nodes_Graph, number_of_deployed_layers, BitActivation, load_dir):
         ####################################################################################

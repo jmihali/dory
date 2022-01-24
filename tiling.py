@@ -24,6 +24,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from ne16 import ne16_conv1x1_unroll
+
 # constraint solver for optimization
 from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import solver_parameters_pb2
@@ -1095,7 +1097,8 @@ class Tiling():
                                buffer_size,
                                full_computation=True,
                                multiple_buffering_factor=2,
-                               name='conv'): 
+                               name='conv',
+                               nnx=False): 
         ###############################################
         ##### PARAMETERS INITIALIZATION ###############
         ###############################################
@@ -1125,24 +1128,26 @@ class Tiling():
         if self.backend == 'Occamy':
             input_dim += ((padding_top + padding_bottom) * (w_in + padding_left + padding_right) + (padding_left + padding_right) * h_in) * self.BitIn * int(n_in/self.number_of_clusters)
         output_dim = self.BitOut * int(n_out/self.number_of_clusters) * h_out * w_out
-        if DW == 0:
+        if DW == 0 and not nnx:
             weight_dim = self.BitW * n_in * int(n_out/self.number_of_clusters) * fs1 * fs2
-        else:
+        elif not nnx:
             weight_dim = self.BitW * int(n_out/self.number_of_clusters) * fs1 * fs2
-        if DW == 0:
+        if DW == 0 and not nnx:
             im2col_dim = 8 * 2 * 8 * fs1 * fs2 * n_in 
-        else:
+        elif not nnx:
             im2col_dim = 8 * 8 * (fs1 * (h_in + padding_top + padding_bottom) + fs1) * int( 8 / min(self.BitIn, self.BitOut, self.BitW)) 
             weight_full_prec_dim = 8 * 8 * fs1 * fs2 * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
             if self.BitW==8:
                  weight_full_prec_dim = 0
+        else:
+            im2col_dim = 0
         if 'MatMul' in name or 'Gemm' in name:
             im2col_dim = 0
         bn_dim = self.BitActivation * int(n_out/self.number_of_clusters) * 2
         buffer_total = input_dim + output_dim + weight_dim + im2col_dim + bn_dim
         if n_in >= self.number_of_clusters and self.backend == 'Occamy':
             buffer_total = input_dim * multiple_buffering_factor + output_dim + weight_dim + im2col_dim + bn_dim
-        if DW == 1:
+        if DW == 1 and not nnx:
             buffer_total+= weight_full_prec_dim
         if BN == 0:
             buffer_total -= bn_dim   
@@ -1233,18 +1238,22 @@ class Tiling():
         if self.backend == 'Occamy':
             constr_in += db * ds_x_scale * ((padding_top + padding_bottom) * (tile_w_in + padding_left + padding_right) + (padding_left + padding_right) * tile_h_in) * tile_n_in
         constr_out = db * ds_y_scale * tile_n_out * tile_h_out * tile_w_out
-        if DW == 0:
+        if DW == 0 and not nnx:
             if self.backend == 'Occamy':
                 constr_weight = db * ds_W_scale * n_in * tile_n_out * fs1 * fs2
             if self.backend == 'MCU':
                 constr_weight = db * ds_W_scale * tile_n_in * tile_n_out * fs1 * fs2
             constr_im2col = 32 * 8 * 2 * 8 * fs1 * fs2 * tile_n_in
-        else:
+        elif not nnx:
             constr_weight = db * ds_W_scale * n_in * fs1 * fs2
             constr_im2col = 32 * 8 * 8 * ( fs1 * (tile_h_in + padding_top + padding_bottom) + fs1) * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
             constr_weight_full_prec = db * 32 * 8 * 8 * fs1 * fs2 * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
             if self.BitW==8:
                 constr_weight_full_prec = 0
+        else:
+            constr_weight = db * ds_W_scale * (16 * (tile_n_in // 16) + ((tile_n_in % 16) != 0)) * fs1 * fs2
+            constr_im2col = 0
+            constr_weight_full_prec = 0
         if 'MatMul' in name or 'Gemm' in name:
             constr_im2col = 0
         constr_bn = ds_bn_scale * tile_n_out * 2 * db
@@ -1259,7 +1268,7 @@ class Tiling():
         ###############################################
         obj_expr = solver.IntVar(0, max_obj_value, "obj_expr")
         heuristics = 0
-        if DW == 0:
+        if DW == 0 and not nnx:
             ####### Geometrical Shape of Tiles ############
             heuristics +=  64 * 2000000 * ((tile_h_out - 1) % 8) \
                          + 64 * 3000000 * ((tile_w_out - 1) % 2) \
@@ -1275,7 +1284,7 @@ class Tiling():
                         + 64 * 10000 * (((n_out-zero_variable) % (tile_n_out+1)) % 4) \
                         + 64 * 20000 * (((h_out-zero_variable) % (tile_h_out+1)) % 8) \
                         + 64 * 30000 * (((w_out-zero_variable) % (tile_w_out+1)) % 2)
-        elif DW == 1:
+        elif DW == 1 and not nnx:
             ####### Geometrical Shape of Tiles ############
             heuristics += 32 * 10000 * ((tile_n_out > 7)) \
                         + 64 * 10000 * ((tile_n_out - 1) % int(8*8/min(self.BitIn, self.BitOut, self.BitW))) \
@@ -1290,6 +1299,18 @@ class Tiling():
             ####### Geometrical Shape of Border Tiles #####
             heuristics += 32 * 100 * (((n_out-zero_variable) % (tile_n_out+1)) > 7) \
                         + 32 * 100 * (((h_out-zero_variable) % (tile_h_out+1)) % 4)
+        and nnx:
+            ####### Geometrical Shape of Tiles ############
+            heuristics +=  64 * 3000000 * ((tile_n_in  - 1) % 16)  # input channel divisible by 16 -- highest importance
+            heuristics +=  64 * 2000000 * ((tile_w_out - 1) % 3)   # output width  divisible by 3 -- high importance
+            heuristics +=  64 * 1000000 * ((tile_h_out - 1) % 3)   # output height divisible by 3 -- high importance (slightly less)
+            ####### Total Dimension of Tile ###############
+            heuristics += constraint_all
+            ####### Geometrical Shape of Border Tiles #####
+            heuristics += 64 * 10000 * ((n_out-zero_variable) % (tile_n_out+1))
+                        + 64 * 30000 * (((n_in-zero_variable)  % (tile_n_in+1))  % 16)
+                        + 64 * 20000 * (((w_out-zero_variable) % (tile_w_out+1)) % 3)
+                        + 64 * 10000 * (((h_out-zero_variable) % (tile_h_out+1)) % 3) ))
 
         solver.Add(obj_expr == heuristics)
         objective = solver.Maximize(obj_expr, 1)
@@ -1485,6 +1506,7 @@ class Tiling():
                 self.buffer_size,
                 full_computation=full_computation,
                 multiple_buffering_factor=multiple_buffering_factor,
+                nnx=(fs1==1 and fs2==1 and DW==0),
                 name=name)
         else:
             tiling = self.get_tiling_conv2d_like(
@@ -1502,6 +1524,7 @@ class Tiling():
                 self.buffer_size,
                 full_computation=full_computation,
                 multiple_buffering_factor=multiple_buffering_factor,
+                nnx=(fs1==1 and fs2==1 and DW==0),
                 name=name)        
         name_include.append(name)
         # report
@@ -1569,6 +1592,7 @@ class Tiling():
             logging.debug("    Total L1 occupation:".ljust(18) + str(L1_tiles_size * 1.).ljust(15))
             # printing layer .c file. Either a unique one, or top,bottom and middle one (for which also tiling is computed).
             if (p_top+p_bottom) > 0 and (factor_h_in > 1 or factor_h_out > 1):
+                print("HELLO1")
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W,
                     n_in * g, h_in, w_in,
@@ -1576,7 +1600,7 @@ class Tiling():
                     tile_n_in, tile_h_in, tile_w_in, tile_h_out, tile_w_out,
                     tile_n_out,
                     ds_x, ds_y, ds_W, self.BitActivation, type_data,
-                    fs1, fs2, 0,0, p_left, p_right, s,
+                    fs1, fs2, 0,0, p_left, p_right, s, # single line different with 'else'
                     relu, BN, DW,
                     out_mul, 0, out_shift, factor_ch_out, factor_h_out, factor_h_in,
                     name_layer=name,
@@ -1593,8 +1617,10 @@ class Tiling():
                     sdk = self.sdk,
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
-                    dma_parallelization = self.dma_parallelization)
+                    dma_parallelization = self.dma_parallelization,
+                    nnx = (fs1==1 and fs2==1 and DW==0))
             else:
+                print("HELLO2")
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W,
                     n_in * g, h_in, w_in,
@@ -1602,7 +1628,7 @@ class Tiling():
                     tile_n_in, tile_h_in, tile_w_in, tile_h_out, tile_w_out,
                     tile_n_out,
                     ds_x, ds_y, ds_W, self.BitActivation, type_data,
-                    fs1, fs2, p_top,p_bottom, p_left, p_right, s,
+                    fs1, fs2, p_top,p_bottom, p_left, p_right, s, # single line different with 'if'
                     relu, BN, DW,
                     out_mul, 0, out_shift, factor_ch_out, factor_h_out, factor_h_in,
                     name_layer=name,
@@ -1619,7 +1645,8 @@ class Tiling():
                     sdk = self.sdk,
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
-                    dma_parallelization = self.dma_parallelization)   
+                    dma_parallelization = self.dma_parallelization,
+                    nnx = (fs1==1 and fs2==1 and DW==0))   
             if (p_top + p_bottom) > 0 and (factor_h_in > 1 or factor_h_out > 1):
                 tiling = self.get_tiling_conv2d_like(
                     DW,
@@ -1636,6 +1663,7 @@ class Tiling():
                     self.buffer_size,
                     full_computation=full_computation,
                     multiple_buffering_factor=multiple_buffering_factor,
+                    nnx=(fs1==1 and fs2==1 and DW==0),
                     name=name) 
                 tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out = tiling
                 in_dim1, out_dim2, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
@@ -1662,7 +1690,8 @@ class Tiling():
                     sdk = self.sdk,
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
-                    dma_parallelization = self.dma_parallelization) 
+                    dma_parallelization = self.dma_parallelization,
+                    nnx = (fs1==1 and fs2==1 and DW==0)) 
                 if out_dim2 > out_dim1:
                     out_dim1 = out_dim2     
                 h_in_last = h_in
@@ -1698,7 +1727,8 @@ class Tiling():
                     [n_out, h_out_last, w_out],
                     self.buffer_size,
                     full_computation=full_computation,
-                    multiple_buffering_factor=multiple_buffering_factor,
+                    multiple_buffering_factor=multiple_buffering_factor,\
+                    nnx=(fs1==1 and fs2==1 and DW==0),
                     name=name)  
                 tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out = tiling
                 in_dim1, out_dim2, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
@@ -1725,7 +1755,8 @@ class Tiling():
                     sdk = self.sdk,
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
-                    dma_parallelization = self.dma_parallelization)
+                    dma_parallelization = self.dma_parallelization,
+                    nnx = (fs1==1 and fs2==1 and DW==0))
                 if out_dim2 > out_dim1:
                     out_dim1 = out_dim2   
                 name_include.append(name + '_p_t')
