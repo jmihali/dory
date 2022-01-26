@@ -40,12 +40,12 @@ class Model_deployment_MCU(Model_deployment):
         ####################################################################################
         ###### SECTION 1: BACKEND FILE SELECTING. SELECTING CORRECT KERNELS TO IMPORT ######
         ####################################################################################
-        optional = '8bits'
+        optional = 'nnx'
         for node in PULP_Nodes_Graph:
             if 'Conv' in node.get_parameter('name'):
                 ### NOT WORKING IF NO ANNOTATION IS PRESENT IN THE GRAPH: E.G. FOR NEMO
                 if node.get_parameter('out_activation_bits') < 8 or node.get_parameter('input_activation_bits') < 8 or node.get_parameter('weight_bits') < 8:
-                    optional = 'mixed-sw'
+                    optional = 'nnx'
                 ### Should be 3 in case of 1D convolution: each dimension is equal to 1
                 h_dimension = node.get_parameter('kernel_shape')[0] + node.get_parameter('input_dim')[0] + node.get_parameter('output_dim')[0]
                 if h_dimension == 3:
@@ -72,26 +72,6 @@ class Model_deployment_MCU(Model_deployment):
             layer_mixed_list.append('pulp_nn_avgpool_u2.c')
             layer_mixed_list.append('pulp_nn_maxpool_u2.c')
         if 'nnx' in optional:
-            for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
-                BitIn = PULP_Nodes_Graph[i].input_activation_bits
-                BitOut = PULP_Nodes_Graph[i].out_activation_bits
-                if ('Pool' not in PULP_Nodes_Graph[i].name) and ('Add' not in PULP_Nodes_Graph[i].name):
-                    BitW = PULP_Nodes_Graph[i].weight_bits
-                if 'DW' in PULP_Nodes_Graph[i].name:
-                    layer_mixed_list.append(f'pulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
-                elif 'Conv' in PULP_Nodes_Graph[i].name:
-                    layer_mixed_list.append(f'pulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
-                if ('Conv' in PULP_Nodes_Graph[i].name or 'Gemm' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name) and BitOut!=32:
-                    layer_mixed_list.append(f'pulp_nn_matmul_u{BitOut}_i{BitW}.c')
-                if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
-                    layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
-            layer_mixed_list.append('pulp_nn_add_u8_u8.c')
-            layer_mixed_list.append('pulp_nn_avgpool_u8.c')
-            layer_mixed_list.append('pulp_nn_maxpool_u8.c')
-            layer_mixed_list.append('pulp_nn_avgpool_u4.c')
-            layer_mixed_list.append('pulp_nn_maxpool_u4.c')
-            layer_mixed_list.append('pulp_nn_avgpool_u2.c')
-            layer_mixed_list.append('pulp_nn_maxpool_u2.c')
             layer_mixed_list.append('pulp_nnx_pointwise.c')
         if 'mixed-hw' in optional:
             for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
@@ -197,27 +177,12 @@ class Model_deployment_MCU(Model_deployment):
                 elif layer.split('_')[2] == 'add':
                     os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/Add/' + layer + ' ./application/DORY_network/src/')
         elif "nnx" in optional:
-            os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/include/*  ./application/DORY_network/inc/')
+            os.system('cp ../pulp-nn/' + version +'/include/*  ./application/DORY_network/inc/')
+            os.system('cp ../pulp-nn/' + version +'/src/* ./application/DORY_network/src/')
             os.system('cp ../pulp-nnx/ne16_hal/inc/* ./application/DORY_network/inc/')
             os.system('cp ../pulp-nnx/include/* ./application/DORY_network/inc/')
-            for layer in layer_mixed_list:
-                if layer.split('_')[2] == 'conv':
-                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Convolution/' + layer + ' ./application/DORY_network/src/')
-                elif layer.split('_')[2] == 'depthwise':
-                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Depthwise/' + layer + ' ./application/DORY_network/src/')
-                elif layer.split('_')[2] == 'matmul':
-                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/MatrixMultiplication/' + layer + ' ./application/DORY_network/src/')
-                elif layer.split('_')[2] == 'linear':
-                    if layer.split('_')[4] == 'i32':
-                        os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/LinearNoQuant/' + layer + ' ./application/DORY_network/src/')
-                    else:
-                        os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/LinearQuant/' + layer + ' ./application/DORY_network/src/')
-                elif 'avgpool' in layer.split('_')[2]:
-                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Pooling/AvgPool/' + layer + ' ./application/DORY_network/src/')
-                elif 'maxpool' in layer.split('_')[2]:
-                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Pooling/MaxPool/' + layer + ' ./application/DORY_network/src/')
-                elif layer.split('_')[2] == 'add':
-                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Add/' + layer + ' ./application/DORY_network/src/')
+            os.system('cp ../pulp-nnx/src/pulp_nnx_pointwise.c ./application/DORY_network/src/')
+            os.system('cp ../pulp-nnx/ne16_hal/src/ne16.c ./application/DORY_network/src/')
 
     def create_weights_files(self, PULP_Nodes_Graph, number_of_deployed_layers, BitActivation, load_dir):
         ####################################################################################

@@ -1132,6 +1132,8 @@ class Tiling():
             weight_dim = self.BitW * n_in * int(n_out/self.number_of_clusters) * fs1 * fs2
         elif not nnx:
             weight_dim = self.BitW * int(n_out/self.number_of_clusters) * fs1 * fs2
+        elif DW == 0 and nnx:
+            weight_dim = self.BitW * n_in * int(n_out/self.number_of_clusters) * fs1 * fs2 # FIXME
         if DW == 0 and not nnx:
             im2col_dim = 8 * 2 * 8 * fs1 * fs2 * n_in 
         elif not nnx:
@@ -1299,7 +1301,7 @@ class Tiling():
             ####### Geometrical Shape of Border Tiles #####
             heuristics += 32 * 100 * (((n_out-zero_variable) % (tile_n_out+1)) > 7) \
                         + 32 * 100 * (((h_out-zero_variable) % (tile_h_out+1)) % 4)
-        and nnx:
+        elif DW == 0 and nnx:
             ####### Geometrical Shape of Tiles ############
             heuristics +=  64 * 3000000 * ((tile_n_in  - 1) % 16)  # input channel divisible by 16 -- highest importance
             heuristics +=  64 * 2000000 * ((tile_w_out - 1) % 3)   # output width  divisible by 3 -- high importance
@@ -1307,10 +1309,10 @@ class Tiling():
             ####### Total Dimension of Tile ###############
             heuristics += constraint_all
             ####### Geometrical Shape of Border Tiles #####
-            heuristics += 64 * 10000 * ((n_out-zero_variable) % (tile_n_out+1))
-                        + 64 * 30000 * (((n_in-zero_variable)  % (tile_n_in+1))  % 16)
-                        + 64 * 20000 * (((w_out-zero_variable) % (tile_w_out+1)) % 3)
-                        + 64 * 10000 * (((h_out-zero_variable) % (tile_h_out+1)) % 3) ))
+            heuristics += 64 * 10000 * ((n_out-zero_variable) % (tile_n_out+1)) \
+                        + 64 * 30000 * (((n_in-zero_variable)  % (tile_n_in+1))  % 16) \
+                        + 64 * 20000 * (((w_out-zero_variable) % (tile_w_out+1)) % 3) \
+                        + 64 * 10000 * (((h_out-zero_variable) % (tile_h_out+1)) % 3)
 
         solver.Add(obj_expr == heuristics)
         objective = solver.Maximize(obj_expr, 1)
@@ -1525,7 +1527,7 @@ class Tiling():
                 full_computation=full_computation,
                 multiple_buffering_factor=multiple_buffering_factor,
                 nnx=(fs1==1 and fs2==1 and DW==0),
-                name=name)        
+                name=name)
         name_include.append(name)
         # report
         if tiling is not None:
@@ -1592,7 +1594,6 @@ class Tiling():
             logging.debug("    Total L1 occupation:".ljust(18) + str(L1_tiles_size * 1.).ljust(15))
             # printing layer .c file. Either a unique one, or top,bottom and middle one (for which also tiling is computed).
             if (p_top+p_bottom) > 0 and (factor_h_in > 1 or factor_h_out > 1):
-                print("HELLO1")
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W,
                     n_in * g, h_in, w_in,
@@ -1620,7 +1621,6 @@ class Tiling():
                     dma_parallelization = self.dma_parallelization,
                     nnx = (fs1==1 and fs2==1 and DW==0))
             else:
-                print("HELLO2")
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W,
                     n_in * g, h_in, w_in,
