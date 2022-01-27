@@ -10,3 +10,6 @@
 [submodule "pulp-nn-mixed"]
 	path = pulp-nn-mixed
 	url = https://github.com/pulp-platform/pulp-nn-mixed
+[submodule "pulp-nnx"]
+	path = pulp-nnx
+	url = ./pulp-nnx
