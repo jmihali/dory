@@ -179,10 +179,9 @@ class Model_deployment_MCU(Model_deployment):
         elif "nnx" in optional:
             os.system('cp ../pulp-nn/' + version +'/include/*  ./application/DORY_network/inc/')
             os.system('cp ../pulp-nn/' + version +'/src/* ./application/DORY_network/src/')
-            os.system('cp ../pulp-nnx/ne16_hal/inc/* ./application/DORY_network/inc/')
-            os.system('cp ../pulp-nnx/include/* ./application/DORY_network/inc/')
-            os.system('cp ../pulp-nnx/src/pulp_nnx_pointwise.c ./application/DORY_network/src/')
-            os.system('cp ../pulp-nnx/ne16_hal/src/ne16.c ./application/DORY_network/src/')
+            os.system('cp ../pulp-nnx/include/ne16/*.h ./application/DORY_network/inc/')
+            os.system('cp ../pulp-nnx/include/*.h ./application/DORY_network/inc/')
+            os.system('cp ../pulp-nnx/src/ne16/*.c ./application/DORY_network/src/')
 
     def create_weights_files(self, PULP_Nodes_Graph, number_of_deployed_layers, BitActivation, load_dir):
         ####################################################################################

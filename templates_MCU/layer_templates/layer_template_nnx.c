@@ -19,7 +19,7 @@
  */
 
 #include "${func_name}.h"
-#include "ne16.h"
+#include "pulp_nnx_hal.h"
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 % endif
@@ -134,8 +134,8 @@ void ${func_name}(
   volatile int exec_db_act;
   volatile pi_cl_dma_copy_t copy_k;
   volatile pi_cl_dma_copy_t copy_lambda;
-  volatile ne16_task_t nnx_task, nnx_task_remainder;
-  volatile ne16_weights_t nnx_weights = {
+  volatile nnx_task_t nnx_task, nnx_task_remainder;
+  volatile nnx_weights_t nnx_weights = {
     NULL,
     ${x_tile_size_h},
     ${x_tile_size_w},
@@ -143,21 +143,21 @@ void ${func_name}(
     ${y_tile_size_nof},
     8,
     -128,
-    ne16WeightOffsetModeLayerWise
+    weightOffsetModeLayerWise
   };
-  volatile ne16_feature_t nnx_input = {
+  volatile nnx_feature_t nnx_input = {
     NULL,
     ${x_tile_size_h},
     ${x_tile_size_w},
     ${x_tile_size_nif},
-    ne16FeatureBitwidth8Bit
+    featureBitwidth8Bit
   };
-  volatile ne16_feature_t nnx_output = {
+  volatile nnx_feature_t nnx_output = {
     NULL,
     ${y_tile_size_h},
     ${y_tile_size_w},
     ${y_tile_size_nof},
-    ne16FeatureBitwidth8Bit
+    featureBitwidth8Bit
   };
   volatile int _nnx_run_load = 0;
   volatile int _nnx_run_exec = 0;
@@ -187,8 +187,8 @@ void ${func_name}(
 
   // init accelerated task
   if(pi_core_id() == 0) {
-    ne16_soft_clear();
-    ne16_task_init(&nnx_task);
+    nnx_soft_clear();
+    nnx_task_init(&nnx_task);
     // do not reinit -- simply update the pointers
     db_x = db_state_x ? ${x_tile_size_byte} : 0;
     db_W = db_state_W ? ${W_tile_size_byte} : 0;
@@ -203,7 +203,7 @@ void ${func_name}(
     VERBOSE_PRINT("Acquire iter=PRE\n");
     int id = pulp_nnx_pointwise_acquire();
     pulp_nnx_pointwise_offload(&nnx_task);
-    NE16_WRITE(NE16_TRIGGER, 1); // commit, no trigger
+    nnx_job_commit();
     VERBOSE_PRINT("  Job_id=%d\n", id);
   }
 
@@ -457,7 +457,7 @@ void ${func_name}(
       VERBOSE_PRINT("    W_tile_size_nif=%d, W_tile_size_nof=%d, x_tile_size_h=%d, x_tile_size_w=%d, y_tile_size_h=%d, y_tile_size_w=%d", W_tile_size_nif, W_tile_size_nof, x_tile_size_h, x_tile_size_w, y_tile_size_h, y_tile_size_w);
       VERBOSE_PRINT("    Ko=%d Ki=%d Ho=%d Wo=%d Hi=%d Wi=%d\n", nnx_weights.n_weights, nnx_weights.depth, nnx_output.height, nnx_output.width, nnx_input.height, nnx_input.width);
 
-      ne16_task_init(&nnx_task_remainder);
+      nnx_task_init(&nnx_task_remainder);
       pulp_nnx_pointwise_init(&nnx_task_remainder, nnx_weights, nnx_input, nnx_output);
 
       VERBOSE_PRINT("    nb_KoKi=%08x nb_HoWo=%08x\n", nnx_task_remainder.cfg.subtile.number.KoKi, nnx_task_remainder.cfg.subtile.number.HoWo);      
@@ -571,6 +571,6 @@ void ${func_name}(
   dory_dma_deallocate(dory_dma_channel);
 % endif
 
-  // clear NE16 for cleanup
-  ne16_soft_clear();
+  // clear NNX for cleanup
+  nnx_soft_clear();
 }
