@@ -1233,6 +1233,8 @@ class Tiling():
         if DW == 1: 
             solver.Add(tile_n_in % (int(8/min(self.BitIn, self.BitOut, self.BitW)))==0)
         solver.Add(tile_n_out % (int(8/min(self.BitIn, self.BitOut, self.BitW)))==0)
+        if nnx:
+            solver.Add(tile_n_in % 8 == 0) # non-border tiles MUST be byte-aligned
         ###############################################
         ##### CONSTRAINTS FOR DIMENSION ###############
         ###############################################

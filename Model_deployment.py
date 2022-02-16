@@ -323,15 +323,14 @@ class Model_deployment():
                         Input_compressed[-1] += int(i_x.item()) << (BitOut * (z % int(8 / BitOut)))
                     z += 1
             if check_layer == f:
-                act_compare = Input_compressed
+                PULP_Nodes_Graph[f].act_compare = Input_compressed
             PULP_Nodes_Graph[f].check_sum_out = sum(Input_compressed)
             if f == len(PULP_Nodes_Graph) - 1:
-                ww = np.asarray(nodes_to_deploy.weights).reshape(nodes_to_deploy.ch_out,nodes_to_deploy.ch_in ).astype(np.int8).astype(int)
-                X_in = pd.read_csv(load_dir + 'out_layer' + str(f-1) + '.txt')
-                X_out = pd.read_csv(load_dir + 'out_layer' + str(f) + '.txt')
-                X_in = X_in.values[:, 0].astype(int).reshape(X_in.shape[0],1)
                 try:
-                    PULP_Nodes_Graph[f].check_sum_out = sum(sum(np.matmul(ww,X_in)))
+                    ww = np.asarray(nodes_to_deploy.weights).reshape(nodes_to_deploy.ch_out,nodes_to_deploy.ch_in ).astype(np.int8).astype(int)
+                    X_in = pd.read_csv(load_dir + 'out_layer' + str(f-1) + '.txt')
+                    X_out = pd.read_csv(load_dir + 'out_layer' + str(f) + '.txt')
+                    X_in = X_in.values[:, 0].astype(int).reshape(X_in.shape[0],1)
                 except:
                     PULP_Nodes_Graph[f].check_sum_out = 0
             if f != len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
@@ -410,6 +409,7 @@ class Model_deployment():
             act_compare = np.asarray([0, 0])
             act_size = [0, 0, 0]
         else:
+            act_compare = np.asarray(PULP_Nodes_Graph[check_layer].act_compare)
             act_size = [PULP_Nodes_Graph[check_layer].output_dim[0], PULP_Nodes_Graph[check_layer].output_dim[1], PULP_Nodes_Graph[check_layer].ch_out]
         ## printf the network file. It calls all the layer functions
         template.print_template_network(

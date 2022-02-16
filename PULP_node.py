@@ -40,6 +40,7 @@ class node_element():
         self.output_activation_dimensions_L3 = 0
         self.inmul1 = 'empty'
         self.inmul2 = 'empty'
+        self.group = 'Not-initialized' # ? FIXME
         self.weight_bits=8
         self.input_activation_precision = 8
         self.output_activation_precision = 8

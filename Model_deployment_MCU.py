@@ -25,6 +25,7 @@ from mako.template import Template
 import numpy as np
 import torch
 import pandas as pd
+from ne16 import *
 
 class Model_deployment_MCU(Model_deployment):
     """
@@ -183,7 +184,7 @@ class Model_deployment_MCU(Model_deployment):
             os.system('cp ../pulp-nnx/include/*.h ./application/DORY_network/inc/')
             os.system('cp ../pulp-nnx/src/ne16/*.c ./application/DORY_network/src/')
 
-    def create_weights_files(self, PULP_Nodes_Graph, number_of_deployed_layers, BitActivation, load_dir):
+    def create_weights_files(self, PULP_Nodes_Graph, number_of_deployed_layers, BitActivation, load_dir, nnx=True):
         ####################################################################################
         ###### SECTION 2: WEIGHTS FILES CREATION. CREATING .HEX FILES FOR EACH LAYER  ######
         ####################################################################################
@@ -193,6 +194,19 @@ class Model_deployment_MCU(Model_deployment):
         weights_to_write = []
         for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
             if 'weights' in nodes_to_deploy.__dict__:
+                if nnx:
+                    s = nodes_to_deploy.weights.shape
+                    if len(s) < 4:
+                        pass
+                    elif s[1] == s[2] == 1:
+                        # [Ko, H, W, Ki] -> bytearray([Ko, Ki/KiTile, Qw, KiTile])
+                        nodes_to_deploy.wmin    = nodes_to_deploy.weights.min()
+                        w = np.asarray(nodes_to_deploy.weights - nodes_to_deploy.wmin, dtype=np.int64)
+                        nodes_to_deploy.weights = ne16_conv1x1_unroll(np.asarray(nodes_to_deploy.weights - nodes_to_deploy.wmin, dtype=np.int64), 8, format='KoHWKi')
+                        # consistency check
+                        ww = ne16_conv1x1_roll(nodes_to_deploy.weights, 8, w.shape, format='KoHWKi')
+                        if (ww-w).any():
+                            print("ERROR in LAYER %d: NE16 weight consistency check failed" % i)
                 if PULP_Nodes_Graph[i].weight_bits < 8 and 'DW' in nodes_to_deploy.name:
                     nodes_to_deploy.weights = nodes_to_deploy.weights.reshape(int(nodes_to_deploy.weights.shape[0]/2),2,nodes_to_deploy.weights.shape[1],nodes_to_deploy.weights.shape[2],nodes_to_deploy.weights.shape[3]).transpose(0,2,3,1,4).flatten().tolist()
                 else:
@@ -277,6 +291,7 @@ class Model_deployment_MCU(Model_deployment):
                 nodes_to_deploy.add_parameter('lambda', lambd_byte)
                 weights = np.concatenate((weights, nodes_to_deploy.get_parameter('lambda')))
             if 'weights' in nodes_to_deploy.__dict__:
+                # import pdb; pdb.set_trace()
                 while len(weights) % 4 != 0:
                     weights = np.concatenate((weights, np.asarray([0])))
                 weights = np.asarray(weights)
@@ -291,7 +306,7 @@ class Model_deployment_MCU(Model_deployment):
             x_in = pd.read_csv(load_dir + 'input.txt')
             x_in = x_in.values[:, 0].astype(int)
         except:
-            x_in = torch.Tensor(1, PULP_Nodes_Graph[0].group, PULP_Nodes_Graph[0].ch_in, PULP_Nodes_Graph[0].input_dim[0], PULP_Nodes_Graph[0].input_dim[1]).uniform_(0, (2**(9)))
+            x_in = torch.Tensor(1, PULP_Nodes_Graph[0].groups, PULP_Nodes_Graph[0].ch_in, PULP_Nodes_Graph[0].input_dim[0], PULP_Nodes_Graph[0].input_dim[1]).uniform_(0, (2**(9)))
             x_in[x_in > (2**8 - 1)] = 0
             x_in = torch.round(x_in)
             x_in = x_in.flatten().numpy().astype(int)

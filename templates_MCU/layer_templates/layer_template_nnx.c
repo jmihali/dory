@@ -165,7 +165,7 @@ void ${func_name}(
   // double buffering state
   int db_state_x=0;
   int db_state_W=0;
-  int db_state_y=1;
+  int db_state_y=0;
   // last-tile flags
   int iter;
   // tile loop indeces
@@ -203,8 +203,11 @@ void ${func_name}(
     VERBOSE_PRINT("Acquire iter=PRE\n");
     int id = pulp_nnx_pointwise_acquire();
     pulp_nnx_pointwise_offload(&nnx_task);
+% if tile_dim_nof!=1 and tile_dim_h!=1 and tile_dim_w!=1:
     nnx_job_commit();
+% endif
     VERBOSE_PRINT("  Job_id=%d\n", id);
+    _nnx_run_load = 1;
   }
 
   ////////////////////////////
@@ -539,6 +542,9 @@ void ${func_name}(
       dory_dma_barrier(DMA_copy_y);
       dory_dma_barrier(DMA_copy_x);
       dory_dma_barrier(DMA_copy_W);
+      
+      if(iter == total_tiles-1)
+        nnx_job_wait();
 
 % if FLAG_BATCHNORM == 1:    
     if(iter < (total_tiles-1) && (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec))
