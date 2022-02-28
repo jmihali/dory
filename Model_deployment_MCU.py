@@ -200,7 +200,7 @@ class Model_deployment_MCU(Model_deployment):
                         pass
                     elif s[1] == s[2] == 1:
                         # [Ko, H, W, Ki] -> bytearray([Ko, Ki/KiTile, Qw, KiTile])
-                        nodes_to_deploy.wmin    = nodes_to_deploy.weights.min()
+                        nodes_to_deploy.wmin    = -128 #nodes_to_deploy.weights.min()
                         w = np.asarray(nodes_to_deploy.weights - nodes_to_deploy.wmin, dtype=np.int64)
                         nodes_to_deploy.weights = ne16_conv1x1_unroll(np.asarray(nodes_to_deploy.weights - nodes_to_deploy.wmin, dtype=np.int64), 8, format='KoHWKi')
                         # consistency check

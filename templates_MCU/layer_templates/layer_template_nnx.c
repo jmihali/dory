@@ -3,7 +3,7 @@
  * Francesco Conti <f.conti@unibo.it>
  * Alessio Burrello <alessio.burrello@unibo.it>
  *
- * Copyright (C) 2018-2020 University of Bologna
+ * Copyright (C) 2018-2022 University of Bologna
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -190,16 +190,16 @@ void ${func_name}(
     nnx_soft_clear();
     nnx_task_init(&nnx_task);
     // do not reinit -- simply update the pointers
-    db_x = db_state_x ? ${x_tile_size_byte} : 0;
-    db_W = db_state_W ? ${W_tile_size_byte} : 0;
-    db_y = db_state_y ? ${y_tile_size_byte} : 0;
-    pulp_nnx_pointwise_init(&nnx_task, nnx_weights, nnx_input, nnx_output);
-    nnx_task.weights_ptr = (l1_buffer + ${l1_W_offset}) + db_W;
-    nnx_task.infeat_ptr  = (l1_buffer + ${l1_x_offset}) + db_x;
-    nnx_task.outfeat_ptr = (l1_buffer + ${l1_y_offset}) + db_y;
-    nnx_task.scale_ptr       = (l1_buffer + ${l1_W_offset}) + db_W; //fixme
-    nnx_task.scale_shift_ptr = (l1_buffer + ${l1_W_offset}) + db_W; //fixme
-    nnx_task.scale_bias_ptr  = (l1_buffer + ${l1_W_offset}) + db_W; //fixme
+    db_x   =  db_state_x ? ${x_tile_size_byte} : 0;
+    db_W   =  db_state_W ? ${W_tile_size_byte} : 0;
+    db_y   = !db_state_y ? ${y_tile_size_byte} : 0;
+    db_act =  db_state_W ? ${k_tile_size_byte_transfer} : 0;
+    pulp_nnx_pointwise_init(&nnx_task, nnx_weights, nnx_input, nnx_output, out_shift);
+    nnx_task.weights_ptr     = (l1_buffer + ${l1_W_offset}) + db_W;
+    nnx_task.infeat_ptr      = (l1_buffer + ${l1_x_offset}) + db_x;
+    nnx_task.outfeat_ptr     = (l1_buffer + ${l1_y_offset}) + db_y;
+    nnx_task.scale_ptr       = (l1_buffer + ${l1_k_offset}) + db_act;
+    nnx_task.scale_bias_ptr  = (l1_buffer + ${l1_lambda_offset}) + db_act;
     VERBOSE_PRINT("Acquire iter=PRE\n");
     int id = pulp_nnx_pointwise_acquire();
     pulp_nnx_pointwise_offload(&nnx_task);
@@ -466,12 +466,11 @@ void ${func_name}(
       VERBOSE_PRINT("    nb_KoKi=%08x nb_HoWo=%08x\n", nnx_task_remainder.cfg.subtile.number.KoKi, nnx_task_remainder.cfg.subtile.number.HoWo);      
 
       if(nnx_task_remainder.cfg.subtile.number.KoKi != 0 && nnx_task_remainder.cfg.subtile.number.HoWo != 0) {
-        nnx_task_remainder.weights_ptr = (l1_buffer + ${l1_W_offset}) + db_W;
-        nnx_task_remainder.infeat_ptr  = (l1_buffer + ${l1_x_offset}) + db_x;
-        nnx_task_remainder.outfeat_ptr = (l1_buffer + ${l1_y_offset}) + db_y;
-        nnx_task_remainder.scale_ptr       = (l1_buffer + ${l1_W_offset}) + db_W; //fixme
-        nnx_task_remainder.scale_shift_ptr = (l1_buffer + ${l1_W_offset}) + db_W; //fixme
-        nnx_task_remainder.scale_bias_ptr  = (l1_buffer + ${l1_W_offset}) + db_W; //fixme
+        nnx_task_remainder.weights_ptr     = (l1_buffer + ${l1_W_offset}) + db_W;
+        nnx_task_remainder.infeat_ptr      = (l1_buffer + ${l1_x_offset}) + db_x;
+        nnx_task_remainder.outfeat_ptr     = (l1_buffer + ${l1_y_offset}) + db_y;
+        nnx_task_remainder.scale_ptr       = (l1_buffer + ${l1_k_offset}) + db_act;
+        nnx_task_remainder.scale_bias_ptr  = (l1_buffer + ${l1_lambda_offset}) + db_act;
         VERBOSE_PRINT("Acquire iter=%d total=%d\n", iter, total_tiles);
         
         int id = pulp_nnx_pointwise_acquire();
@@ -488,12 +487,12 @@ void ${func_name}(
     else if(iter < total_tiles-1) {
 
       // do not reinit -- simply update the pointers
-      nnx_task.weights_ptr = (l1_buffer + ${l1_W_offset}) + db_W;
-      nnx_task.infeat_ptr  = (l1_buffer + ${l1_x_offset}) + db_x;
-      nnx_task.outfeat_ptr = (l1_buffer + ${l1_y_offset}) + db_y;
-      nnx_task.scale_ptr       = (l1_buffer + ${l1_W_offset}) + db_W; //fixme
-      nnx_task.scale_shift_ptr = (l1_buffer + ${l1_W_offset}) + db_W; //fixme
-      nnx_task.scale_bias_ptr  = (l1_buffer + ${l1_W_offset}) + db_W; //fixme
+      nnx_task.weights_ptr     = (l1_buffer + ${l1_W_offset}) + db_W;
+      nnx_task.infeat_ptr      = (l1_buffer + ${l1_x_offset}) + db_x;
+      nnx_task.outfeat_ptr     = (l1_buffer + ${l1_y_offset}) + db_y;
+      nnx_task.scale_ptr       = (l1_buffer + ${l1_k_offset}) + db_act;
+      nnx_task.scale_shift_ptr = NULL;
+      nnx_task.scale_bias_ptr  = (l1_buffer + ${l1_lambda_offset}) + db_act;
       VERBOSE_PRINT("Acquire iter=%d total=%d bool=%d\n", iter, total_tiles, iter<total_tiles-1);
 
       int id = pulp_nnx_pointwise_acquire();
