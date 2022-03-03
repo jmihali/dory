@@ -190,10 +190,18 @@ void ${func_name}(
     nnx_soft_clear();
     nnx_task_init(&nnx_task);
     // do not reinit -- simply update the pointers
+% if tile_dim_nof * tile_dim_h * tile_dim_w * tile_dim_nif == 1:
+    // no double buffering if there is a single tile
+    db_x   = 0;
+    db_W   = 0;
+    db_y   = 0;
+    db_act = 0;
+% else:
     db_x   =  db_state_x ? ${x_tile_size_byte} : 0;
     db_W   =  db_state_W ? ${W_tile_size_byte} : 0;
     db_y   = !db_state_y ? ${y_tile_size_byte} : 0;
     db_act =  db_state_W ? ${k_tile_size_byte_transfer} : 0;
+% endif
     pulp_nnx_pointwise_init(&nnx_task, nnx_weights, nnx_input, nnx_output, out_shift);
     nnx_task.weights_ptr     = (l1_buffer + ${l1_W_offset}) + db_W;
     nnx_task.infeat_ptr      = (l1_buffer + ${l1_x_offset}) + db_x;
@@ -302,12 +310,20 @@ void ${func_name}(
   % endif
     // check if last in any dimension
 
+% if tile_dim_nof * tile_dim_h * tile_dim_w * tile_dim_nif == 1:
+    // no double buffering if there is a single tile
+    db_x   = 0;
+    db_W   = 0;
+    db_y   = 0;
+    db_act = 0;
+% else:
     // compute double buffering offsets and update db state
     db_x = !db_state_x ? ${x_tile_size_byte} : 0;
     db_W = !db_state_W ? ${W_tile_size_byte} : 0;
     db_y = !db_state_y ? ${y_tile_size_byte} : 0;
-% if FLAG_BATCHNORM == 1:
+  % if FLAG_BATCHNORM == 1:
     db_act = !db_state_W ? ${k_tile_size_byte_transfer} : 0;
+  % endif
 % endif
   % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
     exec_db_x = db_state_x ? ${x_tile_size_byte} : 0;
