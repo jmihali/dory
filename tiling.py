@@ -1255,7 +1255,7 @@ class Tiling():
             if self.BitW==8:
                 constr_weight_full_prec = 0
         else:
-            constr_weight = db * ds_W_scale * (16 * (tile_n_in // 16) + ((tile_n_in % 16) != 0)) * fs1 * fs2
+            constr_weight = db * ds_W_scale * (16 * (tile_n_in // 16) + ((tile_n_in % 16) != 0)) * fs1 * fs2 * tile_n_out
             constr_im2col = 0
             constr_weight_full_prec = 0
         if 'MatMul' in name or 'Gemm' in name:
