@@ -353,8 +353,7 @@ void ${func_name}(
     // ##       ##     ## ##     ## ##     ## 
     // ########  #######  ##     ## ########  
 
-    if(iter < (total_tiles-1) )
-    {
+    if(iter < (total_tiles-1) ) {
       asm volatile("": : :"memory");
     % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
       x_tile_size_nif = (_i_nif_load+1 == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
@@ -380,7 +379,7 @@ void ${func_name}(
       W_tile_size_byte = W_tile_size_nof*W_tile_size_nif*${W_data_size_byte}*${fs1}*${fs2}/8;
     % endif
       W_length_nif_byte = (_i_nif_load+1 == ${tile_dim_nif}) ? ${W_tile_size_nif_byte_last} : ${W_tile_nif_byte};
-    // transfer of next input tile in double buffering
+      // transfer of next input tile in double buffering
     % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
 
       DMA_copy_x.ext = dory_get_tile_3d(l2_x, _i_h_load, _i_w_load, _i_nif_load, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g},  ${conv_overlap1}, ${conv_overlap2},0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
@@ -391,8 +390,7 @@ void ${func_name}(
       dory_dma_memcpy_async(DMA_copy_x);
     % endif
       // transfer of next weight tile if changed input or output channels
-      if (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec)
-      {
+      if (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec) {
       % if flag_DW == 0:
         DMA_copy_W.ext = dory_get_tile_3d(l2_W, _i_nof_load, 0, _i_nif_load, ${W_tile_size_nof}, ${fs1}*${fs2}, ${W_tile_size_nif}, ${fs1}*${fs2}, ${nif}, 0,0,0,0,0,0, ${W_data_size_byte});
       % else:
@@ -446,13 +444,13 @@ void ${func_name}(
     p_t = 0;
     p_b = 0;
     if (_i_h_exec == 0)
-        p_t = ${padding_top};
+      p_t = ${padding_top};
     if (_i_w_exec == 0)
-        p_l = ${padding_left};
+      p_l = ${padding_left};
     if (_i_h_exec == ${tile_dim_h}-1)
-        p_b = ${padding_bottom};
+      p_b = ${padding_bottom};
     if (_i_w_exec == ${tile_dim_w}-1)
-        p_r = ${padding_right};
+      p_r = ${padding_right};
 
     // program NE in LOAD stage to take advantage of multi-context
     if((iter < total_tiles-1) && (_i_nif_load+1 == ${tile_dim_nif} || _i_h_load+1 == ${tile_dim_h} || _i_w_load+1 == ${tile_dim_w} || _i_nof_load+1 == ${tile_dim_nof})) {
@@ -537,8 +535,8 @@ void ${func_name}(
     // ######## ##     ## ########  ######
 
     // run the layer on NE (non-blocking)
-    if (pi_core_id()==0 && _nnx_run_load) {
-      pulp_nnx_pointwise_run(); //_blocking();
+    if (pi_core_id()==0 && _nnx_run_load && (iter == 0 || iter < total_tiles-1)) {
+      pulp_nnx_pointwise_run();
     }
 
     dory_cores_barrier();
@@ -553,8 +551,7 @@ void ${func_name}(
     //  ######     ##     #######  ##     ## ######## 
     
 % if tile_dim_nif != 1 and flag_DW == 0:
-    if(_i_nif_load == 0) 
-    {
+    if(_i_nif_load == 0) {
 % endif
       // wait for DMA write/read
       dory_dma_barrier(DMA_copy_y);
@@ -570,11 +567,10 @@ void ${func_name}(
         nnx_job_wait();
 
 % if FLAG_BATCHNORM == 1:    
-    if(iter < (total_tiles-1) && (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec))
-    {                        
-      dory_dma_barrier(DMA_copy_k);
-      dory_dma_barrier(DMA_copy_lambda);
-    }
+      if(iter < (total_tiles-1) && (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec)) {                        
+        dory_dma_barrier(DMA_copy_k);
+        dory_dma_barrier(DMA_copy_lambda);
+      }
     % endif      
       DMA_copy_y.ext = dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
       DMA_copy_y.loc = (l1_buffer + ${l1_y_offset}) + store_db_y;
