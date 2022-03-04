@@ -132,6 +132,7 @@ void ${func_name}(
   volatile int exec_db_x;
   volatile int exec_db_W;
   volatile int exec_db_act;
+  volatile int store_db_y;
   volatile pi_cl_dma_copy_t copy_k;
   volatile pi_cl_dma_copy_t copy_lambda;
   volatile nnx_task_t nnx_task, nnx_task_remainder;
@@ -199,7 +200,7 @@ void ${func_name}(
 % else:
     db_x   =  db_state_x ? ${x_tile_size_byte} : 0;
     db_W   =  db_state_W ? ${W_tile_size_byte} : 0;
-    db_y   = !db_state_y ? ${y_tile_size_byte} : 0;
+    db_y   =  db_state_y ? ${y_tile_size_byte} : 0;
     db_act =  db_state_W ? ${k_tile_size_byte_transfer} : 0;
 % endif
     pulp_nnx_pointwise_init(&nnx_task, nnx_weights, nnx_input, nnx_output, out_shift);
@@ -211,7 +212,7 @@ void ${func_name}(
     VERBOSE_PRINT("Acquire iter=PRE\n");
     int id = pulp_nnx_pointwise_acquire();
     pulp_nnx_pointwise_offload(&nnx_task);
-% if tile_dim_nof!=1 and tile_dim_h!=1 and tile_dim_w!=1:
+% if tile_dim_nof * tile_dim_h * tile_dim_w * tile_dim_nif != 1:
     nnx_job_commit();
 % endif
     VERBOSE_PRINT("  Job_id=%d\n", id);
@@ -335,6 +336,7 @@ void ${func_name}(
 % if FLAG_BATCHNORM == 1:
     exec_db_act = db_state_W ? ${k_tile_size_byte_transfer} : 0;
 % endif
+    store_db_y = db_state_y ? ${y_tile_size_byte} : 0;
     if (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec)
       db_state_W = ! db_state_W;
     //switch all double buffering offset and y only after that all n_input_features have been analyzed: we need to pass all n_in to produce a single fil
@@ -477,7 +479,7 @@ void ${func_name}(
       VERBOSE_PRINT("    Ko=%d Ki=%d Ho=%d Wo=%d Hi=%d Wi=%d\n", nnx_weights.n_weights, nnx_weights.depth, nnx_output.height, nnx_output.width, nnx_input.height, nnx_input.width);
 
       nnx_task_init(&nnx_task_remainder);
-      pulp_nnx_pointwise_init(&nnx_task_remainder, nnx_weights, nnx_input, nnx_output);
+      pulp_nnx_pointwise_init(&nnx_task_remainder, nnx_weights, nnx_input, nnx_output, out_shift);
 
       VERBOSE_PRINT("    nb_KoKi=%08x nb_HoWo=%08x\n", nnx_task_remainder.cfg.subtile.number.KoKi, nnx_task_remainder.cfg.subtile.number.HoWo);      
 
@@ -569,7 +571,7 @@ void ${func_name}(
     }
     % endif      
       DMA_copy_y.ext = dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
-      DMA_copy_y.loc = (l1_buffer + ${l1_y_offset}) + db_y;
+      DMA_copy_y.loc = (l1_buffer + ${l1_y_offset}) + store_db_y;
       DMA_copy_y.number_of_2d_copies = y_tile_size_h;
       DMA_copy_y.number_of_1d_copies = y_tile_size_w;
       DMA_copy_y.length_1d_copy = y_length_nof_byte;
