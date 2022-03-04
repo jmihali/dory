@@ -21,7 +21,8 @@
 #include "${func_name}.h"
 #include "pulp_nnx_hal.h"
 % if ULTRA_VERBOSE:
-#define VERBOSE_PRINT(...) printf(__VA_ARGS__)
+// #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
+#define VERBOSE_PRINT(...)
 % endif
 
 void ${func_name}(
@@ -320,10 +321,10 @@ void ${func_name}(
 % else:
     // compute double buffering offsets and update db state
     db_x = !db_state_x ? ${x_tile_size_byte} : 0;
-    db_W = !db_state_W ? ${W_tile_size_byte} : 0;
+    db_W =  db_state_W ? ${W_tile_size_byte} : 0;
     db_y = !db_state_y ? ${y_tile_size_byte} : 0;
   % if FLAG_BATCHNORM == 1:
-    db_act = !db_state_W ? ${k_tile_size_byte_transfer} : 0;
+    db_act =  db_state_W ? ${k_tile_size_byte_transfer} : 0;
   % endif
 % endif
   % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
@@ -519,11 +520,11 @@ void ${func_name}(
       _nnx_run_load = 1;
     }
 
-    y_tile_size_nof = (_i_nof_load+1 == ${tile_dim_nof}) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
-    y_tile_size_h   = (_i_h_load+1 == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-    y_tile_size_w   = (_i_w_load+1 == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
+    y_tile_size_nof = (_i_nof_exec+1 == ${tile_dim_nof}) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
+    y_tile_size_h   = (_i_h_exec+1 == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
+    y_tile_size_w   = (_i_w_exec+1 == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
     y_tile_size_byte = y_tile_size_nof*y_tile_size_h*y_tile_size_w*${y_data_size_byte}/8;
-    y_length_nof_byte = (_i_nof_load+1 == ${tile_dim_nof})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
+    y_length_nof_byte = (_i_nof_exec+1 == ${tile_dim_nof})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
 
     dory_cores_barrier();
     
@@ -560,6 +561,11 @@ void ${func_name}(
       dory_dma_barrier(DMA_copy_x);
       dory_dma_barrier(DMA_copy_W);
       
+      // busy-wait until the next job is started
+      if(iter != total_tiles-1)
+        while(nnx_job_id() <= iter);
+
+      // in the last tile, wait for the end of the job
       if(iter == total_tiles-1)
         nnx_job_wait();
 
