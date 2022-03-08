@@ -319,7 +319,10 @@ void ${func_name}(
     exec_db_x = 0;
   % endif
     db_state_x = ! db_state_x;
-    exec_db_W = db_state_W ? ${W_tile_size_byte} : 0;
+    if (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec)
+      exec_db_W = !db_state_W ? ${W_tile_size_byte} : 0;
+    else
+      exec_db_W = db_state_W ? ${W_tile_size_byte} : 0;
 % if FLAG_BATCHNORM == 1:
     exec_db_act = db_state_W ? ${k_tile_size_byte_transfer} : 0;
 % endif
@@ -405,31 +408,12 @@ void ${func_name}(
         % endif
       }
     }
-    // creation of the pointers to input, output, weights, lambda and k
-    % if flag_DW == 1:
-    asm volatile("": : :"memory");
-    % endif
-    x = (${type} *) (l1_buffer + ${l1_x_offset} + exec_db_x);
-    % if FLAG_BATCHNORM == 1:
-    % if act_dim_bit == 32:
-    k = (int32_t *) (l1_buffer + ${l1_k_offset} + exec_db_act);
-    lambda = (int32_t *) (l1_buffer + ${l1_lambda_offset} + exec_db_act);
-    % else:
-    k = (int64_t *) (l1_buffer + ${l1_k_offset} + exec_db_act);
-    lambda = (int64_t *) (l1_buffer + ${l1_lambda_offset} + exec_db_act);
-    % endif
-    % endif
-    % if has_bias == 1:
-    b = (${type} *) (l1_buffer + ${l1_b_offset} + _i_nof_exec*${bias_tile_size_byte});
-    % endif
-    W = (${type} *) (l1_buffer + ${l1_W_offset} + exec_db_W);
-    y = (${type} *) (l1_buffer + ${l1_y_offset} + db_y);
 
     // program NE in LOAD stage to take advantage of multi-context
     if((iter < total_tiles-1) && (_i_nif_load+1 == ${tile_dim_nif} || _i_h_load+1 == ${tile_dim_h} || _i_w_load+1 == ${tile_dim_w} || _i_nof_load+1 == ${tile_dim_nof})) {
 
       // reinit task data structure
-      nnx_weights.data      = (l1_buffer + ${l1_W_offset}) + db_W;
+      nnx_weights.data      = (l1_buffer + ${l1_W_offset}) + exec_db_W;
       nnx_weights.height    = ${fs1};
       nnx_weights.width     = ${fs2};
       nnx_weights.depth     = W_tile_size_nif;
@@ -456,7 +440,7 @@ void ${func_name}(
       VERBOSE_PRINT("    nb_KoKi=%08x nb_HoWo=%08x\n", nnx_task_remainder.cfg.subtile.number.KoKi, nnx_task_remainder.cfg.subtile.number.HoWo);      
 
       if(nnx_task_remainder.cfg.subtile.number.KoKi != 0 && nnx_task_remainder.cfg.subtile.number.HoWo != 0) {
-        nnx_task_remainder.weights_ptr     = (l1_buffer + ${l1_W_offset}) + db_W;
+        nnx_task_remainder.weights_ptr     = (l1_buffer + ${l1_W_offset}) + exec_db_W;
         nnx_task_remainder.infeat_ptr      = (l1_buffer + ${l1_x_offset}) + exec_db_x;
         nnx_task_remainder.outfeat_ptr     = (l1_buffer + ${l1_y_offset}) + db_y;
         nnx_task_remainder.scale_ptr       = (l1_buffer + ${l1_k_offset}) + db_act;
@@ -475,7 +459,7 @@ void ${func_name}(
     else if(iter < total_tiles-1) {
 
       // do not reinit -- simply update the pointers
-      nnx_task.weights_ptr     = (l1_buffer + ${l1_W_offset}) + db_W;
+      nnx_task.weights_ptr     = (l1_buffer + ${l1_W_offset}) + exec_db_W;
       nnx_task.infeat_ptr      = (l1_buffer + ${l1_x_offset}) + db_x;
       nnx_task.outfeat_ptr     = (l1_buffer + ${l1_y_offset}) + db_y;
       nnx_task.scale_ptr       = (l1_buffer + ${l1_k_offset}) + db_act;
