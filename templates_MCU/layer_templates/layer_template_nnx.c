@@ -302,14 +302,19 @@ void ${func_name}(
 % else:
     // compute double buffering offsets and update db state
     db_x = !db_state_x ? ${x_tile_size_byte} : 0;
+## At this stage, this switch is a bit empirical...
+% if tile_dim_nof == 1:
     db_W =  db_state_W ? ${W_tile_size_byte} : 0;
+% else:
+    db_W = !db_state_W ? ${W_tile_size_byte} : 0;
+% endif
     db_y = !db_state_y ? ${y_tile_size_byte} : 0;
   % if FLAG_BATCHNORM == 1:
     db_act =  db_state_W ? ${k_tile_size_byte_transfer} : 0;
   % endif
 % endif
   % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
-    exec_db_x = db_state_x ? ${x_tile_size_byte} : 0;
+    exec_db_x = !db_state_x ? ${x_tile_size_byte} : 0;
   % else:
     exec_db_x = 0;
   % endif
@@ -431,7 +436,7 @@ void ${func_name}(
       nnx_weights.n_weights = W_tile_size_nof;
       nnx_weights.bitwidth  = 8;
 
-      nnx_input.data      = (l1_buffer + ${l1_x_offset}) + db_x;
+      nnx_input.data      = (l1_buffer + ${l1_x_offset}) + exec_db_x;
       nnx_input.height    = x_tile_size_h;
       nnx_input.width     = x_tile_size_w;
       nnx_input.depth     = W_tile_size_nif;
@@ -452,7 +457,7 @@ void ${func_name}(
 
       if(nnx_task_remainder.cfg.subtile.number.KoKi != 0 && nnx_task_remainder.cfg.subtile.number.HoWo != 0) {
         nnx_task_remainder.weights_ptr     = (l1_buffer + ${l1_W_offset}) + db_W;
-        nnx_task_remainder.infeat_ptr      = (l1_buffer + ${l1_x_offset}) + db_x;
+        nnx_task_remainder.infeat_ptr      = (l1_buffer + ${l1_x_offset}) + exec_db_x;
         nnx_task_remainder.outfeat_ptr     = (l1_buffer + ${l1_y_offset}) + db_y;
         nnx_task_remainder.scale_ptr       = (l1_buffer + ${l1_k_offset}) + db_act;
         nnx_task_remainder.scale_bias_ptr  = (l1_buffer + ${l1_lambda_offset}) + db_act;
