@@ -230,8 +230,19 @@ void ${func_name}(
   DMA_copy_lambda.number_of_1d_copies = 1;
   DMA_copy_lambda.length_1d_copy = (uint16_t) ${lambda_tile_size_byte_transfer};
   dory_dma_memcpy_async(DMA_copy_lambda);
-
 % endif
+
+  DMA_copy_W.ext = l2_W;
+  DMA_copy_W.loc = (l1_buffer + ${l1_W_offset}) + 0;
+  DMA_copy_W.number_of_2d_copies = 1;
+%if tile_dim_nof == 1:
+  DMA_copy_W.number_of_1d_copies = 1;
+  DMA_copy_W.length_1d_copy = ${W_tile_size_nof * W_tile_nif_byte * fs1 * fs2};
+%else:
+  DMA_copy_W.number_of_1d_copies = ${W_tile_size_nof};
+  DMA_copy_W.length_1d_copy = ${W_tile_nif_byte * fs1 * fs2};
+%endif
+  dory_dma_memcpy_async(DMA_copy_W);
 
   DMA_copy_x.ext = l2_x;
   DMA_copy_x.loc = (l1_buffer + ${l1_x_offset}) + 0;
@@ -239,13 +250,6 @@ void ${func_name}(
   DMA_copy_x.number_of_1d_copies = ${x_tile_size_w};
   DMA_copy_x.length_1d_copy = ${x_tile_size_nif_byte};
   dory_dma_memcpy_async(DMA_copy_x);
-
-  DMA_copy_W.ext = l2_W;
-  DMA_copy_W.loc = (l1_buffer + ${l1_W_offset}) + 0;
-  DMA_copy_W.number_of_2d_copies = ${W_tile_size_nof};
-  DMA_copy_W.number_of_1d_copies = ${fs1 * fs2};
-  DMA_copy_W.length_1d_copy = ${W_tile_nif_byte};
-  dory_dma_memcpy_async(DMA_copy_W);
 
   // ######## #### ##       ########       ##        #######   #######  ########  
   //    ##     ##  ##       ##             ##       ##     ## ##     ## ##     ## 
@@ -374,8 +378,13 @@ void ${func_name}(
         DMA_copy_W.ext = dory_get_tile_3d(l2_W, _i_nof_load, 0, 0, ${W_tile_size_nof*8/W_data_size_byte}, ${fs1}*${fs2}, ${W_tile_size_nif}, ${fs1}*${fs2}, ${nif}, 0,0,0,0,0,0, ${W_data_size_byte});
       % endif
         DMA_copy_W.loc = (l1_buffer + ${l1_W_offset}) + db_W;
-        DMA_copy_W.number_of_2d_copies = W_tile_size_nof;
+      %if tile_dim_nof == 1:
+        DMA_copy_W.number_of_1d_copies = 1;
+        DMA_copy_W.length_1d_copy = W_tile_size_nof * W_length_nif_byte;
+      %else:
+        DMA_copy_W.number_of_1d_copies = W_tile_size_nof;
         DMA_copy_W.length_1d_copy = W_length_nif_byte;
+      %endif
         dory_dma_memcpy_async(DMA_copy_W);
         % if FLAG_BATCHNORM == 1:
 
