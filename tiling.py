@@ -25,6 +25,7 @@ import torch
 import torch.nn as nn
 
 from ne16 import ne16_conv1x1_unroll
+from ne16 import ne16_conv1x1_pad_ki
 
 # constraint solver for optimization
 from ortools.constraint_solver import pywrapcp
@@ -1817,7 +1818,7 @@ class Tiling():
             if factor_ch_out > 1:
                 weights_dim = ( weight_dim1 + l2_dim_lambda + l2_dim_k + bias_dim1 ) * 2
             else:
-                n_in_temp = self.x_shape[0]
+                n_in_temp = ne16_conv1x1_pad_ki(self.x_shape[0])
                 n_out_temp = self.out_ch
                 if self.groups > 1:
                     weights_dim = int(n_in_temp * fs1 *fs2 * self.BitW / 8) + bias_dim1

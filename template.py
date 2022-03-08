@@ -27,6 +27,7 @@ import os
 import torch
 
 from ne16 import ne16_conv1x1_unroll
+from ne16 import ne16_conv1x1_pad_ki
 
 def print_file_list(x):
     # This function is used to generate a string with all input files.
@@ -733,16 +734,30 @@ def print_template_layer(x, y_gold, W,
     else:
         tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))        
     tk['W_stride_hw_byte'] = int(math.ceil(tk['nif'] * ds_W / 8.0))
-    tk['W_tile_nif_byte'] = int(math.ceil(tk['W_tile_size_nif'] * ds_W / 8.0))
-    tk['W_tile_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
+    if not nnx:
+        tk['W_tile_nif_byte'] = int(math.ceil(tk['W_tile_size_nif'] * ds_W / 8.0))
+        tk['W_tile_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
+    else:
+        tk['W_tile_nif_byte'] = int(math.ceil(ne16_conv1x1_pad_ki(tk['W_tile_size_nif']) * ds_W / 8.0))
+        tk['W_tile_nif_byte_last'] = int(math.ceil(ne16_conv1x1_pad_ki(tk['W_tile_size_nif_last']) * ds_W / 8.0))
+        
     # l2 parameters
     if tk['FLAG_BATCHNORM'] == 1:
-        tk['l2_off_k'] = int(
-            math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0 + tk['b_size_byte']))
-        tk['l2_off_lambda'] = int(
-            math.ceil((tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W + tk['nof'] * ds_act) / 8.0 + tk['b_size_byte']))
+        if not nnx:
+            tk['l2_off_k'] = int(
+                math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0 + tk['b_size_byte']))
+            tk['l2_off_lambda'] = int(
+                math.ceil((tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W + tk['nof'] * ds_act) / 8.0 + tk['b_size_byte']))
+        else:
+            tk['l2_off_k'] = int(
+                math.ceil(tk['nof'] * ne16_conv1x1_pad_ki(tk['nif']) * fs1 * fs2 * ds_W / 8.0 + tk['b_size_byte']))
+            tk['l2_off_lambda'] = int(
+                math.ceil((tk['nof'] * ne16_conv1x1_pad_ki(tk['nif']) * fs1 * fs2 * ds_W + tk['nof'] * ds_act) / 8.0 + tk['b_size_byte']))
     if has_bias == 1:
-        tk['l2_off_bias'] = int(math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0 ))
+        if not nnx:
+            tk['l2_off_bias'] = int(math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0 ))
+        else:
+            tk['l2_off_bias'] = int(math.ceil(tk['nof'] * ne16_conv1x1_pad_ki(tk['nif']) * fs1 * fs2 * ds_W / 8.0 ))
     if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in:
         x_buffer_size = int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
     else:
@@ -754,14 +769,18 @@ def print_template_layer(x, y_gold, W,
             x_buffer_size = 2 * int(math.ceil(ds_x * tile_n_in * (tile_h_in + padding_top + padding_bottom) * (tile_w_in + padding_left + padding_right) / 8.0))
     if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in and n_out == tile_n_out:
         y_buffer_size = int(math.ceil(ds_y * tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] / 8.0))
-        if DW == 0:
+        if DW == 0 and not nnx:
             W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
+        elif DW == 0 and nnx:
+            W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * ne16_conv1x1_pad_ki(tk['W_tile_size_nif']) * fs1 * fs2 / 8.0))
         else:
             W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * 1 * fs1 * fs2 / 8.0))
     else:
         y_buffer_size = 2 * int(math.ceil(ds_y * tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] / 8.0))
-        if DW == 0:
+        if DW == 0 and not nnx:
             W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof'] * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
+        elif DW == 0 and nnx:
+            W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof']  * ne16_conv1x1_pad_ki(tk['W_tile_size_nif']) * fs1 * fs2 / 8.0))
         else:
             W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof'] * 1 * fs1 * fs2 / 8.0))
     if tk['FLAG_BATCHNORM'] == 1:
@@ -840,7 +859,10 @@ def print_template_layer(x, y_gold, W,
     if conv_order != 'PULP-NN-MAX' and conv_order != 'PULP-NN-ADD':
         tk['W_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
         tk['W_tile_size_nif_last'] = tk['W_tile_size_nif']
-        tk['W_tile_size_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
+        if not nnx:
+            tk['W_tile_size_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
+        else:
+            tk['W_tile_size_nif_byte_last'] = int(math.ceil(ne16_conv1x1_pad_ki(tk['W_tile_size_nif_last']) * ds_W / 8.0))
     # y last
     tk['y_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
     tk['y_tile_size_h_last'] = h_out % tile_h_out if (h_out % tile_h_out) > 0 else tile_h_out
@@ -870,7 +892,7 @@ def print_template_layer(x, y_gold, W,
     elif not nnx:
         l2_dim_weights = int(tk['nof'] * 1 * tk['fs1'] * tk['fs2'] * ds_W / 8.0)
     else:
-        l2_dim_weights = int(ne16_conv1x1_unroll(torch.zeros(tk['nof'], tk['fs1'], tk['fs2'], tk['nif'], dtype=torch.int64), ds_W).shape[0])
+        l2_dim_weights = int(tk['nof'] * ne16_conv1x1_pad_ki(tk['nif']) * tk['fs1'] * tk['fs2'] * ds_W / 8.0)
     l2_dim_k = k_buffer_size
     l2_dim_lambda = lambd_buffer_size
     root = '/'.join(os.getcwd().split('/')[:-1])

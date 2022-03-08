@@ -1,6 +1,9 @@
 import torch
 import numpy as np
 
+def ne16_conv1x1_pad_ki(ki):
+    return 16*(ki // 16 + (1 if ki % 16 != 0 else 0))
+
 # assuming torch shapes, w must already be in uint format!
 # format --> [Ko, KiMajor, Qw, KiMinor] (binary tensor)
 #                          +++++++++++ --> these are *contiguous and packed*
