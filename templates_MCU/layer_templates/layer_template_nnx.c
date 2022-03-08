@@ -41,7 +41,6 @@ void ${func_name}(
   unsigned int l2_W =(unsigned int)  real_arg[6];
   unsigned int l1_buffer =(unsigned int)  real_arg[7];
   unsigned int hyperram =(unsigned int)  real_arg[8];
-  unsigned int out_mult_in =(unsigned int)  real_arg[9];
   unsigned int inmul1 = (unsigned int) real_arg[10];
   unsigned int inmul2 = (unsigned int) real_arg[11];
   unsigned int out_shift_in = (unsigned int) real_arg[12];
@@ -118,9 +117,6 @@ void ${func_name}(
   volatile int64_t *lambda;
 % endif
 % endif
-  volatile int x_tile_size_nif_exec;
-  volatile int x_tile_size_h_exec;
-  volatile int x_tile_size_w_exec;
   volatile int y_tile_size_nof;
   volatile int y_tile_size_h;
   volatile int y_tile_size_w;
@@ -161,8 +157,6 @@ void ${func_name}(
     ${y_tile_size_nof},
     featureBitwidth8Bit
   };
-  volatile int _nnx_run_load = 0;
-  volatile int _nnx_run_exec = 0;
 
   // double buffering state
   int db_state_x=0;
@@ -176,49 +170,39 @@ void ${func_name}(
 % if has_bias == 1:
   int has_bias = 1;
 % endif
-  volatile ${type} *im2col;
-  im2col = l1_buffer + ${buffer_l1_all};
-% if flag_DW == 1:
-  volatile ${type} *pwt_buffer;
-  pwt_buffer = im2col + ${im2col_dim};
-% endif
 % if FLAG_RELU == 1:
-  uint16_t out_mult = out_mult_in;
   uint16_t out_shift = out_shift_in;
 % endif
 
   // init accelerated task
-  if(pi_core_id() == 0) {
-    nnx_soft_clear();
-    nnx_task_init(&nnx_task);
-    // do not reinit -- simply update the pointers
+  nnx_soft_clear();
+  nnx_task_init(&nnx_task);
+  // do not reinit -- simply update the pointers
 % if tile_dim_nof * tile_dim_h * tile_dim_w * tile_dim_nif == 1:
-    // no double buffering if there is a single tile
-    db_x   = 0;
-    db_W   = 0;
-    db_y   = 0;
-    db_act = 0;
+  // no double buffering if there is a single tile
+  db_x   = 0;
+  db_W   = 0;
+  db_y   = 0;
+  db_act = 0;
 % else:
-    db_x   =  db_state_x ? ${x_tile_size_byte} : 0;
-    db_W   =  db_state_W ? ${W_tile_size_byte} : 0;
-    db_y   =  db_state_y ? ${y_tile_size_byte} : 0;
-    db_act =  db_state_W ? ${k_tile_size_byte_transfer} : 0;
+  db_x   =  db_state_x ? ${x_tile_size_byte} : 0;
+  db_W   =  db_state_W ? ${W_tile_size_byte} : 0;
+  db_y   =  db_state_y ? ${y_tile_size_byte} : 0;
+  db_act =  db_state_W ? ${k_tile_size_byte_transfer} : 0;
 % endif
-    pulp_nnx_pointwise_init(&nnx_task, nnx_weights, nnx_input, nnx_output, out_shift);
-    nnx_task.weights_ptr     = (l1_buffer + ${l1_W_offset}) + db_W;
-    nnx_task.infeat_ptr      = (l1_buffer + ${l1_x_offset}) + db_x;
-    nnx_task.outfeat_ptr     = (l1_buffer + ${l1_y_offset}) + db_y;
-    nnx_task.scale_ptr       = (l1_buffer + ${l1_k_offset}) + db_act;
-    nnx_task.scale_bias_ptr  = (l1_buffer + ${l1_lambda_offset}) + db_act;
-    VERBOSE_PRINT("Acquire iter=PRE\n");
-    int id = pulp_nnx_pointwise_acquire();
-    pulp_nnx_pointwise_offload(&nnx_task);
+  pulp_nnx_pointwise_init(&nnx_task, nnx_weights, nnx_input, nnx_output, out_shift);
+  nnx_task.weights_ptr     = (l1_buffer + ${l1_W_offset}) + db_W;
+  nnx_task.infeat_ptr      = (l1_buffer + ${l1_x_offset}) + db_x;
+  nnx_task.outfeat_ptr     = (l1_buffer + ${l1_y_offset}) + db_y;
+  nnx_task.scale_ptr       = (l1_buffer + ${l1_k_offset}) + db_act;
+  nnx_task.scale_bias_ptr  = (l1_buffer + ${l1_lambda_offset}) + db_act;
+  VERBOSE_PRINT("Acquire iter=PRE\n");
+  int id = pulp_nnx_pointwise_acquire();
+  pulp_nnx_pointwise_offload(&nnx_task);
 % if tile_dim_nof * tile_dim_h * tile_dim_w * tile_dim_nif != 1:
-    nnx_job_commit();
+  nnx_job_commit();
 % endif
-    VERBOSE_PRINT("  Job_id=%d\n", id);
-    _nnx_run_load = 1;
-  }
+  VERBOSE_PRINT("  Job_id=%d\n", id);
 
   ////////////////////////////
   // First tile transfering //
@@ -230,7 +214,6 @@ void ${func_name}(
   DMA_copy_bias.number_of_1d_copies = 1;
   DMA_copy_bias.length_1d_copy = (uint16_t) ${b_size_byte};
   dory_dma_memcpy_async(DMA_copy_bias);
-  dory_dma_barrier(DMA_copy_bias);
   
   % endif
 % if FLAG_BATCHNORM == 1:
@@ -240,7 +223,6 @@ void ${func_name}(
   DMA_copy_k.number_of_1d_copies = 1;
   DMA_copy_k.length_1d_copy = (uint16_t) ${k_tile_size_byte_transfer};
   dory_dma_memcpy_async(DMA_copy_k);
-  dory_dma_barrier(DMA_copy_k);
 
   DMA_copy_lambda.ext = (uint32_t) l2_W+${l2_off_lambda};
   DMA_copy_lambda.loc = (uint32_t) l1_buffer + ${l1_lambda_offset};
@@ -248,7 +230,6 @@ void ${func_name}(
   DMA_copy_lambda.number_of_1d_copies = 1;
   DMA_copy_lambda.length_1d_copy = (uint16_t) ${lambda_tile_size_byte_transfer};
   dory_dma_memcpy_async(DMA_copy_lambda);
-  dory_dma_barrier(DMA_copy_lambda);
 
 % endif
 
@@ -258,7 +239,6 @@ void ${func_name}(
   DMA_copy_x.number_of_1d_copies = ${x_tile_size_w};
   DMA_copy_x.length_1d_copy = ${x_tile_size_nif_byte};
   dory_dma_memcpy_async(DMA_copy_x);
-  dory_dma_barrier(DMA_copy_x);
 
   DMA_copy_W.ext = l2_W;
   DMA_copy_W.loc = (l1_buffer + ${l1_W_offset}) + 0;
@@ -266,9 +246,6 @@ void ${func_name}(
   DMA_copy_W.number_of_1d_copies = ${fs1 * fs2};
   DMA_copy_W.length_1d_copy = ${W_tile_nif_byte};
   dory_dma_memcpy_async(DMA_copy_W);
-  dory_dma_barrier(DMA_copy_W);
-
-  dory_cores_barrier();
 
   // ######## #### ##       ########       ##        #######   #######  ########  
   //    ##     ##  ##       ##             ##       ##     ## ##     ## ##     ## 
@@ -433,24 +410,6 @@ void ${func_name}(
     % endif
     W = (${type} *) (l1_buffer + ${l1_W_offset} + exec_db_W);
     y = (${type} *) (l1_buffer + ${l1_y_offset} + db_y);
-    // parameter passed to the kernel. Input and output sizes
-    x_tile_size_nif_exec = (_i_nif_exec+1 == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
-    x_tile_size_h_exec   = (_i_h_exec+1 == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
-    x_tile_size_w_exec   = (_i_w_exec+1 == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
-
-    // FIXME: most likely, should be moved to LOAD stage!
-    p_r = 0;
-    p_l = 0;
-    p_t = 0;
-    p_b = 0;
-    if (_i_h_exec == 0)
-      p_t = ${padding_top};
-    if (_i_w_exec == 0)
-      p_l = ${padding_left};
-    if (_i_h_exec == ${tile_dim_h}-1)
-      p_b = ${padding_bottom};
-    if (_i_w_exec == ${tile_dim_w}-1)
-      p_r = ${padding_right};
 
     // program NE in LOAD stage to take advantage of multi-context
     if((iter < total_tiles-1) && (_i_nif_load+1 == ${tile_dim_nif} || _i_h_load+1 == ${tile_dim_h} || _i_w_load+1 == ${tile_dim_w} || _i_nof_load+1 == ${tile_dim_nof})) {
@@ -493,11 +452,9 @@ void ${func_name}(
         int id = pulp_nnx_pointwise_acquire();
         VERBOSE_PRINT("  Job_id=%d\n", id);
         pulp_nnx_pointwise_offload(&nnx_task_remainder);
-        _nnx_run_load = 1;
       }
       else {
         printf("ERROR CONDITION\n");
-        _nnx_run_load = 0;
       }
 
     }
@@ -515,7 +472,6 @@ void ${func_name}(
       int id = pulp_nnx_pointwise_acquire();
       VERBOSE_PRINT("  Job_id=%d\n", id);    
       pulp_nnx_pointwise_offload(&nnx_task);
-      _nnx_run_load = 1;
     }
 
     y_tile_size_nof = (_i_nof_exec+1 == ${tile_dim_nof}) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
@@ -523,8 +479,6 @@ void ${func_name}(
     y_tile_size_w   = (_i_w_exec+1 == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
     y_tile_size_byte = y_tile_size_nof*y_tile_size_h*y_tile_size_w*${y_data_size_byte}/8;
     y_length_nof_byte = (_i_nof_exec+1 == ${tile_dim_nof})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
-
-    dory_cores_barrier();
     
     // ######## ##     ## ########  ######  
     // ##        ##   ##  ##       ##    ## 
@@ -534,13 +488,17 @@ void ${func_name}(
     // ##        ##   ##  ##       ##    ## 
     // ######## ##     ## ########  ######
 
-    // run the layer on NE (non-blocking)
-    if (pi_core_id()==0 && _nnx_run_load && (iter == 0 || iter < total_tiles-1)) {
-      pulp_nnx_pointwise_run();
+    if(iter == 0) {
+      dory_dma_barrier(DMA_copy_k);
+      dory_dma_barrier(DMA_copy_lambda);
+      dory_dma_barrier(DMA_copy_x);
+      dory_dma_barrier(DMA_copy_W);
     }
 
-    dory_cores_barrier();
-
+    // run the layer on NE (non-blocking)
+    if (iter == 0 || iter < total_tiles-1) {
+      pulp_nnx_pointwise_run();
+    }
 
     //  ######  ########  #######  ########  ######## 
     // ##    ##    ##    ##     ## ##     ## ##       
@@ -587,7 +545,6 @@ void ${func_name}(
     _i_nif_exec = _i_nif_load;
     _i_h_exec = _i_h_load;
     _i_w_exec = _i_w_load;
-    dory_cores_barrier();
   }
 
 % if not TEST:
