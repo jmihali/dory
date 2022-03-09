@@ -49,10 +49,10 @@ void ${func_name}(
   // DMA declaration //
   /////////////////////
   uint32_t dory_dma_channel = dory_dma_allocate();
-  volatile DMA_copy DMA_copy_k, DMA_copy_lambda;
-  volatile DMA_copy DMA_copy_W, DMA_copy_x, DMA_copy_y;
+  DMA_copy DMA_copy_k, DMA_copy_lambda;
+  DMA_copy DMA_copy_W, DMA_copy_x, DMA_copy_y;
 % if has_bias == 1:
-  volatile DMA_copy DMA_copy_bias;
+  DMA_copy DMA_copy_bias;
   DMA_copy_bias.hwc_to_chw = 0;
   DMA_copy_bias.stride_2d = 0;
   DMA_copy_bias.stride_1d = 0;
@@ -94,46 +94,45 @@ void ${func_name}(
   DMA_copy_y.dir = 0;
   DMA_copy_y.dma_channel = dory_dma_channel;
 
-  volatile int p_r, p_l, p_t, p_b;
 % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
-  volatile  unsigned short x_tile_size_nif;
-  volatile unsigned short  x_tile_size_byte;
-  volatile unsigned short  x_length_nif_byte;
-  volatile int pad_offset_h, pad_offset_w;
+  unsigned short x_tile_size_nif;
+  unsigned short  x_tile_size_byte;
+  unsigned short  x_length_nif_byte;
+  int pad_offset_h, pad_offset_w;
 % endif  
-  volatile unsigned short  x_tile_size_h;
-  volatile unsigned short  x_tile_size_w;
-  volatile unsigned short  W_tile_size_nof;
-  volatile unsigned short  W_tile_size_nif;
-  volatile unsigned short  W_tile_size_byte;
-  volatile unsigned short W_length_nif_byte;
-  volatile ${type} *x, *W, *y, *b;
+  unsigned short  x_tile_size_h;
+  unsigned short  x_tile_size_w;
+  unsigned short  W_tile_size_nof;
+  unsigned short  W_tile_size_nif;
+  unsigned short  W_tile_size_byte;
+  unsigned short W_length_nif_byte;
+  ${type} *x, *W, *y, *b;
 % if FLAG_BATCHNORM == 1:
 % if act_dim_bit == 32:
-  volatile int32_t *k;
-  volatile int32_t *lambda;
+  int32_t *k;
+  int32_t *lambda;
 % else:
-  volatile int64_t *k;
-  volatile int64_t *lambda;
+  int64_t *k;
+  int64_t *lambda;
 % endif
 % endif
-  volatile int y_tile_size_nof;
-  volatile int y_tile_size_h;
-  volatile int y_tile_size_w;
-  volatile int y_tile_size_byte;
-  volatile int y_length_nof_byte;
-  volatile int db_x;
-  volatile int db_W;
-  volatile int db_act;
-  volatile int db_y;
-  volatile int exec_db_x;
-  volatile int exec_db_W;
-  volatile int exec_db_act;
-  volatile int store_db_y;
-  volatile pi_cl_dma_copy_t copy_k;
-  volatile pi_cl_dma_copy_t copy_lambda;
-  volatile nnx_task_t nnx_task, nnx_task_remainder;
-  volatile nnx_weights_t nnx_weights = {
+  int y_tile_size_nof;
+  int y_tile_size_h;
+  int y_tile_size_w;
+  int y_tile_size_byte;
+  int y_length_nof_byte;
+  int db_x;
+  int db_W;
+  int db_act;
+  int db_y;
+  int exec_db_x;
+  int exec_db_W;
+  int exec_db_act;
+  int store_db_y;
+  pi_cl_dma_copy_t copy_k;
+  pi_cl_dma_copy_t copy_lambda;
+  nnx_task_t nnx_task, nnx_task_remainder;
+  nnx_weights_t nnx_weights = {
     NULL,
     ${x_tile_size_h},
     ${x_tile_size_w},
@@ -143,14 +142,14 @@ void ${func_name}(
     -128,
     weightOffsetModeLayerWise
   };
-  volatile nnx_feature_t nnx_input = {
+  nnx_feature_t nnx_input = {
     NULL,
     ${x_tile_size_h},
     ${x_tile_size_w},
     ${x_tile_size_nif},
     featureBitwidth8Bit
   };
-  volatile nnx_feature_t nnx_output = {
+  nnx_feature_t nnx_output = {
     NULL,
     ${y_tile_size_h},
     ${y_tile_size_w},
@@ -345,7 +344,6 @@ void ${func_name}(
     // ########  #######  ##     ## ########  
 
     if(iter < (total_tiles-1) ) {
-      asm volatile("": : :"memory");
     % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
       x_tile_size_nif = (_i_nif_load+1 == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
       x_tile_size_byte = x_tile_size_nif*x_tile_size_h*x_tile_size_w*${x_data_size_byte}/8;
@@ -382,6 +380,18 @@ void ${func_name}(
     % endif
       // transfer of next weight tile if changed input or output channels
       if (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec) {
+        % if FLAG_BATCHNORM == 1:
+        DMA_copy_k.ext = (uint32_t) l2_W+${l2_off_k} + ${k_tile_size_byte_transfer}*_i_nof_load;
+        DMA_copy_k.loc = (uint32_t) l1_buffer + ${l1_k_offset} + db_act;
+        DMA_copy_k.length_1d_copy = (uint16_t) W_tile_size_nof * ${int(act_dim_bit/8)};
+        dory_dma_memcpy_async(DMA_copy_k);
+
+        DMA_copy_lambda.ext = (uint32_t) l2_W+${l2_off_lambda} + ${lambda_tile_size_byte_transfer}*_i_nof_load;
+        DMA_copy_lambda.loc = (uint32_t) l1_buffer + ${l1_lambda_offset} + db_act;
+        DMA_copy_lambda.length_1d_copy = (uint16_t) W_tile_size_nof * ${int(act_dim_bit/8)};
+        dory_dma_memcpy_async(DMA_copy_lambda);
+        
+        % endif
       % if flag_DW == 0:
         DMA_copy_W.ext = dory_get_tile_3d(l2_W, _i_nof_load, 0, _i_nif_load, ${W_tile_size_nof}, ${fs1}*${fs2}, ${W_tile_size_nif}, ${fs1}*${fs2}, ${nif}, 0,0,0,0,0,0, ${W_data_size_byte});
       % else:
@@ -396,18 +406,6 @@ void ${func_name}(
         DMA_copy_W.length_1d_copy = W_length_nif_byte;
       %endif
         dory_dma_memcpy_async(DMA_copy_W);
-        % if FLAG_BATCHNORM == 1:
-
-        DMA_copy_k.ext = (uint32_t) l2_W+${l2_off_k} + ${k_tile_size_byte_transfer}*_i_nof_load;
-        DMA_copy_k.loc = (uint32_t) l1_buffer + ${l1_k_offset} + db_act;
-        DMA_copy_k.length_1d_copy = (uint16_t) W_tile_size_nof * ${int(act_dim_bit/8)};
-        dory_dma_memcpy_async(DMA_copy_k);
-
-        DMA_copy_lambda.ext = (uint32_t) l2_W+${l2_off_lambda} + ${lambda_tile_size_byte_transfer}*_i_nof_load;
-        DMA_copy_lambda.loc = (uint32_t) l1_buffer + ${l1_lambda_offset} + db_act;
-        DMA_copy_lambda.length_1d_copy = (uint16_t) W_tile_size_nof * ${int(act_dim_bit/8)};
-        dory_dma_memcpy_async(DMA_copy_lambda);
-        % endif
       }
     }
 
@@ -518,7 +516,7 @@ void ${func_name}(
       
       // busy-wait until the next job is started
       if(iter != total_tiles-1)
-        nnx_job_wait_on_id(iter);
+        while(nnx_job_id() <= iter);
 
       // in the last tile, wait for the end of the job
       if(iter == total_tiles-1)
