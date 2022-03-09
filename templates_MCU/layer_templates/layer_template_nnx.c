@@ -310,7 +310,10 @@ void ${func_name}(
 % endif
     db_y = !db_state_y ? ${y_tile_size_byte} : 0;
   % if FLAG_BATCHNORM == 1:
-    db_act =  db_state_W ? ${k_tile_size_byte_transfer} : 0;
+    if (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec)
+      db_act = !db_state_W ? ${k_tile_size_byte_transfer} : 0;
+    else
+      db_act = db_state_W ? ${k_tile_size_byte_transfer} : 0;
   % endif
 % endif
   % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
