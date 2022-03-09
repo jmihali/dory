@@ -1308,8 +1308,7 @@ class Tiling():
             ####### Geometrical Shape of Tiles ############
             heuristics +=  64 * 3000000 * ((tile_n_in  - 1) % 16)  # input channel divisible by 16 -- highest importance
             heuristics +=  64 * 2000000 * ((tile_w_out - 1) % 3)   # output width  divisible by 3 -- high importance
-            heuristics +=  64 * 1500000 * ((tile_h_out - 1) % 3)   # output height divisible by 3 -- high importance (slightly less)
-            heuristics +=  64 * 1000000 * ((tile_n_out - 1) % 32)  # output channel divisible by 32 -- high importance (slightly less)
+            heuristics +=  64 * 1000000 * ((tile_h_out - 1) % 3)   # output height divisible by 3 -- high importance (slightly less)
             ####### Total Dimension of Tile ###############
             heuristics += constraint_all
             ####### Geometrical Shape of Border Tiles #####
