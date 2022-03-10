@@ -265,7 +265,7 @@ static struct pi_device ram;
 
 % if verbose_level == 'Check_all+Perf_final':
 % if check_layer != 100:
-uint8_t act_check[${nof_check*h_out_check*w_out_check}] = {
+PI_L2 uint8_t act_check[${nof_check*h_out_check*w_out_check}] = {
   ${act_compare}
 };
 

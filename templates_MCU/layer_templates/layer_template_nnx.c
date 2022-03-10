@@ -94,42 +94,42 @@ void ${func_name}(
   DMA_copy_y.dir = 0;
   DMA_copy_y.dma_channel = dory_dma_channel;
 
-  volatile int p_r, p_l, p_t, p_b;
+  int p_r, p_l, p_t, p_b;
 % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
-  volatile  unsigned short x_tile_size_nif;
-  volatile unsigned short  x_tile_size_byte;
-  volatile unsigned short  x_length_nif_byte;
-  volatile int pad_offset_h, pad_offset_w;
+  unsigned short x_tile_size_nif;
+  unsigned short x_tile_size_byte;
+  unsigned short x_length_nif_byte;
+  int pad_offset_h, pad_offset_w;
 % endif  
-  volatile unsigned short  x_tile_size_h;
-  volatile unsigned short  x_tile_size_w;
-  volatile unsigned short  W_tile_size_nof;
-  volatile unsigned short  W_tile_size_nif;
-  volatile unsigned short  W_tile_size_byte;
-  volatile unsigned short W_length_nif_byte;
-  volatile ${type} *x, *W, *y, *b;
+  unsigned short  x_tile_size_h;
+  unsigned short  x_tile_size_w;
+  unsigned short  W_tile_size_nof;
+  unsigned short  W_tile_size_nif;
+  unsigned short  W_tile_size_byte;
+  unsigned short W_length_nif_byte;
+  ${type} *x, *W, *y, *b;
 % if FLAG_BATCHNORM == 1:
 % if act_dim_bit == 32:
-  volatile int32_t *k;
-  volatile int32_t *lambda;
+  int32_t *k;
+  int32_t *lambda;
 % else:
-  volatile int64_t *k;
-  volatile int64_t *lambda;
+  int64_t *k;
+  int64_t *lambda;
 % endif
 % endif
-  volatile int y_tile_size_nof;
-  volatile int y_tile_size_h;
-  volatile int y_tile_size_w;
-  volatile int y_tile_size_byte;
-  volatile int y_length_nof_byte;
-  volatile int db_x;
-  volatile int db_W;
-  volatile int db_act;
-  volatile int db_y;
-  volatile int exec_db_x;
-  volatile int exec_db_W;
-  volatile int exec_db_act;
-  volatile int store_db_y;
+  int y_tile_size_nof;
+  int y_tile_size_h;
+  int y_tile_size_w;
+  int y_tile_size_byte;
+  int y_length_nof_byte;
+  int db_x;
+  int db_W;
+  int db_act;
+  int db_y;
+  int exec_db_x;
+  int exec_db_W;
+  int exec_db_act;
+  int store_db_y;
   volatile pi_cl_dma_copy_t copy_k;
   volatile pi_cl_dma_copy_t copy_lambda;
   volatile nnx_task_t nnx_task, nnx_task_remainder;
