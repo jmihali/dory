@@ -539,6 +539,8 @@ class Tiler_Conv2D():
                     weights_dim = int(n_in_temp * fs1 *fs2 * self.BitW / 8) + bias_dim1
                 else:
                     weights_dim = int(n_in_temp * n_out_temp * fs1 *fs2 * self.BitW / 8) + bias_dim1
+                    if (fs1==1 and fs2==1 and DW==0):
+                        weights_dim = int(ne16_conv1x1_pad_ki(n_in_temp) * n_out_temp * fs1 *fs2 * self.BitW / 8) + bias_dim1
                 if BN == 1:
                     weights_dim +=n_out_temp * int(self.BitActivation / 4)
             return in_dim1, out_dim1, weights_dim, l1_dim1, L3_tiling, factor_ch_out, factor_h_out, factor_h_in
