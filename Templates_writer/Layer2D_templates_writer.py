@@ -26,6 +26,10 @@ import sys
 import os
 import re
 
+# accelerator-specific functions for NNX
+from ne16 import ne16_conv1x1_unroll
+from ne16 import ne16_conv1x1_pad_ki
+
 def print_template_layer(x, y_gold, W,
                          n_in, h_in, w_in,
                          n_out,h_out, w_out,
@@ -50,7 +54,8 @@ def print_template_layer(x, y_gold, W,
                          sdk = 'gap_sdk',
                          backend = 'MCU',
                          number_of_clusters = 1,
-                         dma_parallelization = '8-cores'
+                         dma_parallelization = '8-cores',
+                         nnx = False
                          ):
     # Generate the Layer management c file.
     if type_data == 'float':
@@ -185,16 +190,31 @@ def print_template_layer(x, y_gold, W,
     else:
         tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))        
     tk['W_stride_hw_byte'] = int(math.ceil(tk['nif'] * ds_W / 8.0))
-    tk['W_tile_nif_byte'] = int(math.ceil(tk['W_tile_size_nif'] * ds_W / 8.0))
-    tk['W_tile_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
+
+    # in NNX accelerators, weights have special layout and tiling constraints
+    if not nnx:
+        tk['W_tile_nif_byte'] = int(math.ceil(tk['W_tile_size_nif'] * ds_W / 8.0))
+        tk['W_tile_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
+    else:
+        tk['W_tile_nif_byte'] = int(math.ceil(ne16_conv1x1_pad_ki(tk['W_tile_size_nif']) * ds_W / 8.0))
+        tk['W_tile_nif_byte_last'] = int(math.ceil(ne16_conv1x1_pad_ki(tk['W_tile_size_nif_last']) * ds_W / 8.0))
     # l2 parameters
     if tk['FLAG_BATCHNORM'] == 1:
-        tk['l2_off_k'] = int(
-            math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0 + tk['b_size_byte']))
-        tk['l2_off_lambda'] = int(
-            math.ceil((tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W + tk['nof'] * ds_act) / 8.0 + tk['b_size_byte']))
+        if not nnx:
+            tk['l2_off_k'] = int(
+                math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0 + tk['b_size_byte']))
+            tk['l2_off_lambda'] = int(
+                math.ceil((tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W + tk['nof'] * ds_act) / 8.0 + tk['b_size_byte']))
+        else:
+            tk['l2_off_k'] = int(
+                math.ceil(tk['nof'] * ne16_conv1x1_pad_ki(tk['nif']) * fs1 * fs2 * ds_W / 8.0 + tk['b_size_byte']))
+            tk['l2_off_lambda'] = int(
+                math.ceil((tk['nof'] * ne16_conv1x1_pad_ki(tk['nif']) * fs1 * fs2 * ds_W + tk['nof'] * ds_act) / 8.0 + tk['b_size_byte']))
     if has_bias == 1:
-        tk['l2_off_bias'] = int(math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0 ))
+        if not nnx:
+            tk['l2_off_bias'] = int(math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0 ))
+        else:
+            tk['l2_off_bias'] = int(math.ceil(tk['nof'] * ne16_conv1x1_pad_ki(tk['nif']) * fs1 * fs2 * ds_W / 8.0 ))
     if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in:
         x_buffer_size = int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
     else:
@@ -214,6 +234,8 @@ def print_template_layer(x, y_gold, W,
             y_buffer_size = y_buffer_size + (y_buffer_size % 8)
         if DW == 0:
             W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
+            if nnx:
+                W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * ne16_conv1x1_pad_ki(tk['W_tile_size_nif']) * fs1 * fs2 / 8.0))
             if backend == 'Occamy':
                 W_buffer_size = W_buffer_size + (W_buffer_size % 8)
         else:
@@ -226,6 +248,8 @@ def print_template_layer(x, y_gold, W,
             y_buffer_size = y_buffer_size + (y_buffer_size % 16)
         if DW == 0:
             W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof'] * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
+            if nnx:
+                W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof'] * ne16_conv1x1_pad_ki(tk['W_tile_size_nif']) * fs1 * fs2 / 8.0))
             if backend == 'Occamy':
                 W_buffer_size = W_buffer_size + (W_buffer_size % 16)
         else:
@@ -313,6 +337,8 @@ def print_template_layer(x, y_gold, W,
         tk['W_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
         tk['W_tile_size_nif_last'] = tk['W_tile_size_nif']
         tk['W_tile_size_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
+        if nnx:
+            tk['W_tile_size_nif_byte_last'] = int(math.ceil(ne16_conv1x1_pad_ki(tk['W_tile_size_nif_last']) * ds_W / 8.0))
     # y last
     tk['y_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
     tk['y_tile_size_h_last'] = h_out % tile_h_out if (h_out % tile_h_out) > 0 else tile_h_out
@@ -339,12 +365,16 @@ def print_template_layer(x, y_gold, W,
     l2_dim_output = (tk['nof']) * tk['y_h'] * tk['y_w']
     if DW == 0:
         l2_dim_weights = int(tk['nof'] * tk['nif'] * tk['fs1'] * tk['fs2'] * ds_W / 8.0)
+        if nnx:
+            l2_dim_weights = int(tk['nof'] * ne16_conv1x1_pad_ki(tk['nif']) * tk['fs1'] * tk['fs2'] * ds_W / 8.0)
     else:
         l2_dim_weights = int(tk['nof'] * 1 * tk['fs1'] * tk['fs2'] * ds_W / 8.0)
     l2_dim_k = k_buffer_size
     l2_dim_lambda = lambd_buffer_size
     root = '/'.join(os.getcwd().split('/')[:-1])
-    if conv_order == 'PULP-NN':
+    if nnx:
+        tmpl = Template(filename=root+f"/Templates/{backend}/layer_templates/layer_template_nnx.c")
+    elif conv_order == 'PULP-NN':
         tmpl = Template(filename=root+f"/Templates/{backend}/layer_templates/layer_template.c")
     elif conv_order == 'PULP-NN-MAX':
         if(optional_type == '1D_Conv'):
@@ -410,6 +440,6 @@ def print_template_layer(x, y_gold, W,
         s = tmpl.render(**tk)
         save_string = './application/Makefile'
         with open(save_string, "w") as f:
-            f.write(s)
+            f.write(s)          
     return l2_dim_input, l2_dim_output, l2_dim_weights, l2_dim_k, l2_dim_lambda, tk['b_size_byte'], buffer_l1_all, n_out, w_out, h_out
 

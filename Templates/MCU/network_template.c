@@ -61,16 +61,16 @@ static int bypass_L3_input;
 static int L3_output;
 static int bypass_L3_output;
 static int activations_input;
-static int layers_pointers[${len(PULP_Nodes_Graph)}];
+static int layers_pointers[${nb_layers}];
 
 
-static char * Layers_name[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static char * Layers_name[${nb_layers}] = {\
+% for i in range(nb_layers):
 "${PULP_Nodes_Graph[i].name}"${'' if loop.last else ', '}\
 % endfor
 };
-static int L3_layers[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int L3_layers[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if 'L3' in func_name[i]: 
 1${'' if loop.last else ', '}\
 % else:
@@ -78,8 +78,8 @@ static int L3_layers[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int L3_input_layers[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int L3_input_layers[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].L3_input == 1: 
 1${'' if loop.last else ', '}\
 % else:
@@ -87,8 +87,8 @@ static int L3_input_layers[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int L3_output_layers[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int L3_output_layers[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].L3_output == 1: 
 1${'' if loop.last else ', '}\
 % else:
@@ -96,8 +96,8 @@ static int L3_output_layers[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int L3_weights_layers[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int L3_weights_layers[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].L3_weights == 1: 
 1${'' if loop.last else ', '}\
 % else:
@@ -105,8 +105,8 @@ static int L3_weights_layers[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int allocate_layer[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int allocate_layer[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].L3_allocation!=1 and ('Gemm' in PULP_Nodes_Graph[i].name or 'Conv' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name): 
 1${'' if loop.last else ', '}\
 % else:
@@ -114,8 +114,8 @@ static int allocate_layer[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int branch_input[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int branch_input[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].branch_in == 1:
 1${'' if loop.last else ', '}\
 % else:
@@ -123,8 +123,8 @@ static int branch_input[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int branch_output[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int branch_output[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].branch_out == 1:
 1${'' if loop.last else ', '}\
 % else:
@@ -132,8 +132,8 @@ static int branch_output[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int branch_change[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int branch_change[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].branch_change == 1:
 1${'' if loop.last else ', '}\
 % else:
@@ -141,8 +141,8 @@ static int branch_change[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int branch_last[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int branch_last[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].branch_last == 1:
 1${'' if loop.last else ', '}\
 % else:
@@ -150,22 +150,22 @@ static int branch_last[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int check_weights[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int check_weights[${nb_layers}] = {\
+% for i in range(nb_layers):
 ${PULP_Nodes_Graph[i].check_sum_w}${'' if loop.last else ', '}\
 % endfor
 };
-static int check_weights_dimension[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int check_weights_dimension[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if i == 0:
-${int(PULP_Nodes_Graph[i].weights_dimension)}${'' if loop.last else ', '}\
+${int(PULP_Nodes_Graph[i].weights_dimension * PULP_Nodes_Graph[0].weight_bits / 8.0)}${'' if loop.last else ', '}\
 % else:
-${int((PULP_Nodes_Graph[i].weights_dimension - PULP_Nodes_Graph[i-1].weights_dimension))}${'' if loop.last else ', '}\
+${int((PULP_Nodes_Graph[i].weights_dimension - PULP_Nodes_Graph[i-1].weights_dimension) * PULP_Nodes_Graph[0].weight_bits / 8.0)}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-static int cumulative_weights_dimension[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int cumulative_weights_dimension[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if i == 0: 
 0${'' if loop.last else ', '}\
 % else:
@@ -173,28 +173,28 @@ ${int((PULP_Nodes_Graph[i-1].weights_dimension_L3))}${'' if loop.last else ', '}
 % endif
 % endfor
 };
-static int check_activations[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int check_activations[${nb_layers}] = {\
+% for i in range(nb_layers):
 ${PULP_Nodes_Graph[i].check_sum_in}${'' if loop.last else ', '}\
 % endfor
 };
-static int check_activations_dimension[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int check_activations_dimension[${nb_layers}] = {\
+% for i in range(nb_layers):
 ${int(PULP_Nodes_Graph[i].input_activation_dimensions)}${'' if loop.last else ', '}\
 % endfor
 };
-static int check_activations_dimension_L3_in[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int check_activations_dimension_L3_in[${nb_layers}] = {\
+% for i in range(nb_layers):
 ${int(PULP_Nodes_Graph[i].input_activation_dimensions_L3)}${'' if loop.last else ', '}\
 % endfor
 };
-static int check_activations_dimension_L3_out[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int check_activations_dimension_L3_out[${nb_layers}] = {\
+% for i in range(nb_layers):
 ${int(PULP_Nodes_Graph[i].output_activation_dimensions_L3)}${'' if loop.last else ', '}\
 % endfor
 };
-static int out_mult_vector[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int out_mult_vector[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].outmul == 'empty':
 0${'' if loop.last else ', '}\
 % else:
@@ -202,8 +202,8 @@ ${PULP_Nodes_Graph[i].outmul}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-static int out_shift_vector[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int out_shift_vector[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].outshift == 'empty':
 0${'' if loop.last else ', '}\
 % else:
@@ -211,8 +211,8 @@ ${PULP_Nodes_Graph[i].outshift}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-static int inmul1_vector[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int inmul1_vector[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].inmul1 == 'empty':
 0${'' if loop.last else ', '}\
 % else:
@@ -220,8 +220,8 @@ ${PULP_Nodes_Graph[i].inmul1}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-static int inmul2_vector[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int inmul2_vector[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if PULP_Nodes_Graph[i].inmul2 == 'empty':
 0${'' if loop.last else ', '}\
 % else:
@@ -229,18 +229,18 @@ ${PULP_Nodes_Graph[i].inmul2}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-static int check_activations_out[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int check_activations_out[${nb_layers}] = {\
+% for i in range(nb_layers):
 ${PULP_Nodes_Graph[i].check_sum_out}${'' if loop.last else ', '}\
 % endfor
 };
-static int check_activations_out_dimension[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int check_activations_out_dimension[${nb_layers}] = {\
+% for i in range(nb_layers):
 ${int(PULP_Nodes_Graph[i].output_activation_dimensions)}${'' if loop.last else ', '}\
 % endfor
 };
-static int layer_with_weights[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int layer_with_weights[${nb_layers}] = {\
+% for i in range(nb_layers):
 % if 'Gemm' in PULP_Nodes_Graph[i].name or 'Conv' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name: 
 1${'' if loop.last else ', '}\
 % else:
@@ -249,8 +249,8 @@ static int layer_with_weights[${len(PULP_Nodes_Graph)}] = {\
 % endfor
 };
 % if 'Yes' in performance:
-static int NODEs_MACS[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
+static int NODEs_MACS[${nb_layers}] = {\
+% for i in range(nb_layers):
 ${PULP_Nodes_Graph[i].MACs}${'' if loop.last else ', '}\
 % endfor
 };
@@ -265,7 +265,7 @@ static struct pi_device ram;
 
 % if verbose_level == 'Check_all+Perf_final':
 % if check_layer != 100:
-uint8_t act_check[${nof_check*h_out_check*w_out_check}] = {
+PI_L2 uint8_t act_check[${nof_check*h_out_check*w_out_check}] = {
   ${act_compare}
 };
 
@@ -667,7 +667,7 @@ void network_run(unsigned int L3_weights_size)
 /* ---------------------------------- */
 /* -------- SECTION 2 BEGIN --------- */
 /* ---------------------------------- */
-  for(int i = 0; i < ${len(PULP_Nodes_Graph)}; i++)
+  for(int i = 0; i < ${nb_layers}; i++)
   {
     if(pi_core_id()==0)
     {
@@ -675,7 +675,7 @@ void network_run(unsigned int L3_weights_size)
       // 1. copy only if we have to allocate the weights (hence not weights tiled from L3 and not pooling/add layer)
       // 2. waits before the read if we want to implement a double buffering, after if not. 
       // Waiting based on the fact if layer need or not transfers from L3 memory.
-      if(i < ${len(PULP_Nodes_Graph)-1})
+      if(i < ${nb_layers-1})
       {
         if (allocate_layer[i+1] == 1)
         {
@@ -730,7 +730,7 @@ void network_run(unsigned int L3_weights_size)
 % endif
     switch (i)
     {
-% for i in range(len(PULP_Nodes_Graph)):
+% for i in range(nb_layers):
       case ${i}:
         ${func_name[i]}(args);
         break;
@@ -771,7 +771,7 @@ void network_run(unsigned int L3_weights_size)
     if(pi_core_id()==0)
     {
       printf("Layer %s %d ended: \n", Layers_name[i], i);
-      if (i < ${len(PULP_Nodes_Graph) - 1})
+      if (i < ${nb_layers - 1})
       {
         if (L3_output_layers[i]==1)
           printf("Out in L3\n");
@@ -790,7 +790,7 @@ void network_run(unsigned int L3_weights_size)
 #endif 
 % elif verbose_level == 'Last+Perf_final':
     if(pi_core_id()==0)
-      if (i == ${len(PULP_Nodes_Graph) - 1})
+      if (i == ${nb_layers - 1})
           check_layer_last((int32_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
 % else:
 #ifdef VERBOSE
@@ -800,7 +800,7 @@ void network_run(unsigned int L3_weights_size)
     }     
 #endif   
 % endif
-    if (i < ${len(PULP_Nodes_Graph) - 1})
+    if (i < ${nb_layers - 1})
     {
       if(pi_core_id()==0)
       {
@@ -827,7 +827,7 @@ void network_run(unsigned int L3_weights_size)
           d_buffering_weights_e = !d_buffering_weights_e;
           exec_weights = d_buffering_weights_e ? L2_weights_2 : L2_weights_1;
         }
-        if (i < ${len(PULP_Nodes_Graph) - 1})
+        if (i < ${nb_layers - 1})
         {
           // allocation of weights for next next layer, if necessary.
           if (layer_with_weights[i+2] == 1)

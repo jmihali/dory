@@ -29,6 +29,8 @@ from mako.template import Template
 from collections import OrderedDict
 import logging
 
+MAX_DEPLOYED_LAYERS = 1000
+
 class Model_deployment():
     """
     Used to manage the PULP graph. By now, supported Convolutions, Pooling, Linear Layers and Relu.
@@ -332,7 +334,7 @@ class Model_deployment():
                         Input_compressed[-1] += int(i_x.item()) << (BitOut * (z % int(8 / BitOut)))
                     z += 1
             if check_layer == f:
-                act_compare = Input_compressed
+                PULP_Nodes_Graph[f].act_compare = Input_compressed
             PULP_Nodes_Graph[f].check_sum_out = sum(Input_compressed)
             if f == len(PULP_Nodes_Graph) - 1:
                 if nodes_to_deploy.weight_bits == 8:
@@ -354,7 +356,7 @@ class Model_deployment():
         return PULP_Nodes_Graph, class_out
 
     def print_model_network(self, PULP_Nodes_Graph,
-                            number_of_deployed_layers=29,
+                            number_of_deployed_layers=MAX_DEPLOYED_LAYERS,
                             load_dir='./mnistNet/',
                             check_layer=0,
                             verbose_level='None',
@@ -374,9 +376,9 @@ class Model_deployment():
                             type_data = 'char'):
         # Function used to create all the files for the application
         # copy backend is used to copy all the files of the backend
-        self.copy_backend(BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization, optional)
+        self.copy_backend(BitActivation, PULP_Nodes_Graph, MAX_DEPLOYED_LAYERS, sdk, backend, dma_parallelization, optional)
         # create L3 files for weights. These files are .hex which are copied in hyperflash then
-        PULP_Nodes_Graph, weights_files_list, weights_to_write = self.create_weights_files(PULP_Nodes_Graph, number_of_deployed_layers, BitActivation, load_dir)
+        PULP_Nodes_Graph, weights_files_list, weights_to_write = self.create_weights_files(PULP_Nodes_Graph, MAX_DEPLOYED_LAYERS, BitActivation, load_dir)
         fileh = logging.FileHandler('logs/Tiling_profiling.log', 'a')
         formatter = logging.Formatter('%(asctime)s - %(message)s')
         fileh.setFormatter(formatter)
@@ -388,7 +390,7 @@ class Model_deployment():
         print("Creating tiling profiling in Tiling_profling.log")
         # tiling of all the layers. Both tiling and layer generation
         PULP_Nodes_Graph, num_L3_input_tile, num_L3_output_tile, num_L3_weight_tile, name_layer_list, name_list, MAC_total = self.create_layers_tiling(PULP_Nodes_Graph, 
-            number_of_deployed_layers, 
+            MAX_DEPLOYED_LAYERS, 
             L1_dimension, 
             l2_buffer_size, 
             BitActivation,              
@@ -408,25 +410,26 @@ class Model_deployment():
         name_layer_list_unique = list(set(name_layer_list))
         for i, _ in enumerate(name_layer_list_unique):
             name_layer_list_unique[i] = name_layer_list_unique[i] + ".c"
-        for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
+        for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:MAX_DEPLOYED_LAYERS]):
             if nodes_to_deploy.L3_allocation == 1:
                 name_layer_list_unique.append(name_layer_list[i] + "L3" + ".c")
         # compute the checksums for intermediate activations checking
         if 'Check' in verbose_level or 'Last' in verbose_level:
             PULP_Nodes_Graph, class_out = self.generate_intermediate_activations(PULP_Nodes_Graph, 
                 load_dir, 
-                number_of_deployed_layers, 
+                MAX_DEPLOYED_LAYERS, 
                 check_layer,
                 weights_to_write)
         if check_layer == 100:
             act_compare = np.asarray([0, 0])
             act_size = [0, 0, 0]
         else:
+            act_compare = np.asarray(PULP_Nodes_Graph[check_layer].act_compare)
             act_size = [PULP_Nodes_Graph[check_layer].output_dim[0], PULP_Nodes_Graph[check_layer].output_dim[1], PULP_Nodes_Graph[check_layer].ch_out]
         ## printf the network file. It calls all the layer functions
         Network_writer.print_template_network(
             weights_files_list,
-            PULP_Nodes_Graph[:number_of_deployed_layers],
+            PULP_Nodes_Graph[:MAX_DEPLOYED_LAYERS],
             'char',
             name=name_list,
             test=True,
@@ -447,6 +450,7 @@ class Model_deployment():
             platform=self.platform,
             sdk = sdk,
             backend = backend,
-            dma_parallelization = dma_parallelization)
+            dma_parallelization = dma_parallelization,
+            nb_layers=number_of_deployed_layers)
         # create the Makefile for the application
         Makefile_writer.print_template_Makefile(weights_files_list, self.platform, sdk, backend)

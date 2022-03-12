@@ -50,7 +50,8 @@ def print_template_network(
     platform = 'GAP8',
     sdk = 'gap_sdk',
     backend = 'MCU',
-    dma_parallelization = '8-cores'
+    dma_parallelization = '8-cores',
+    nb_layers = 100
 ):
     # Generate the Network management c file.
     tk = OrderedDict([])
@@ -60,12 +61,15 @@ def print_template_network(
         tk['verbose'] = False
     i_conv = []
     i = 0
-    for ind, nodes in enumerate(PULP_Nodes_Graph[:-1]):
-        if ('Gemm' in PULP_Nodes_Graph[ind + 1].name or 'Conv' in PULP_Nodes_Graph[ind + 1].name):
-            i += 1
-            i_conv.append(i)
-        else:
-            i_conv.append(i)
+    if len(PULP_Nodes_Graph) > 1:
+        for ind, nodes in enumerate(PULP_Nodes_Graph[:-1]):
+            if ('Gemm' in PULP_Nodes_Graph[ind + 1].name or 'Conv' in PULP_Nodes_Graph[ind + 1].name):
+                i += 1
+                i_conv.append(i)
+            else:
+                i_conv.append(i)
+    else:
+        i_conv.append(1)
     weights_number = 0
     for nodes in PULP_Nodes_Graph:
         if 'Gemm' in nodes.name or 'Conv' in nodes.name or 'MatMul' in nodes.name:
@@ -93,6 +97,7 @@ def print_template_network(
     tk['cl_frequency'] = cl_frequency
     tk['sdk'] = sdk
     tk['act_compare'] = utils.print_test_vector(act_compare, 'char')
+    tk['nb_layers'] = min(nb_layers, len(PULP_Nodes_Graph))
     list_h = []
     for i, _ in enumerate(name):
         list_h.append(name[i] + '.h')
@@ -116,7 +121,11 @@ def print_template_network(
     root = '/'.join(os.getcwd().split('/')[:-1])
     tmpl = Template(filename=root + f"/Templates/{backend}/network_template.c")
     tk['PULP_Nodes_Graph'] = PULP_Nodes_Graph
-    s = tmpl.render(verbose_log=l,**tk)
+    from mako import exceptions
+    try:
+        s = tmpl.render(verbose_log=l,**tk)
+    except:
+        s = exceptions.text_error_template().render()
     save_string = './application/DORY_network/src/network.c'
     with open(save_string, "w") as f:
         f.write(s)
