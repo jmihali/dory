@@ -150,13 +150,13 @@ static int branch_last[${nb_layers}] = {\
 % endif
 % endfor
 };
-static int check_weights[${nb_layers}] = {\
-% for i in range(nb_layers):
+static int check_weights[${weights_number}] = {\
+% for i in range(weights_number):
 ${PULP_Nodes_Graph[i].check_sum_w}${'' if loop.last else ', '}\
 % endfor
 };
-static int check_weights_dimension[${nb_layers}] = {\
-% for i in range(nb_layers):
+static int check_weights_dimension[${weights_number}] = {\
+% for i in range(weights_number):
 % if i == 0:
 ${int(PULP_Nodes_Graph[i].weights_dimension * PULP_Nodes_Graph[0].weight_bits / 8.0)}${'' if loop.last else ', '}\
 % else:
@@ -164,8 +164,8 @@ ${int((PULP_Nodes_Graph[i].weights_dimension - PULP_Nodes_Graph[i-1].weights_dim
 % endif
 % endfor
 };
-static int cumulative_weights_dimension[${nb_layers}] = {\
-% for i in range(nb_layers):
+static int cumulative_weights_dimension[${weights_number}] = {\
+% for i in range(weights_number):
 % if i == 0: 
 0${'' if loop.last else ', '}\
 % else:

@@ -440,6 +440,6 @@ def print_template_layer(x, y_gold, W,
         s = tmpl.render(**tk)
         save_string = './application/Makefile'
         with open(save_string, "w") as f:
-            f.write(s)          
+            f.write(s)       
     return l2_dim_input, l2_dim_output, l2_dim_weights, l2_dim_k, l2_dim_lambda, tk['b_size_byte'], buffer_l1_all, n_out, w_out, h_out
 

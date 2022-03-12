@@ -523,13 +523,12 @@ class Tiler_Conv2D():
             if factor_h_in > 1:
                 in_dim1 = in_dim1*2
             else:
+                n_in_temp = self.x_shape[0]
+                in_dim1 = n_in_temp * h_in_temp * w_in_temp
                 if (fs1==1 and fs2==1 and DW==0): # FIXME if nnx
                     n_in_temp = ne16_conv1x1_pad_ki(self.x_shape[0])
-                else:
-                    n_in_temp = self.x_shape[0]
                 h_in_temp = self.x_shape[-2]
                 w_in_temp = self.x_shape[-1]
-                in_dim1 = n_in_temp * h_in_temp * w_in_temp
             if factor_ch_out > 1:
                 weights_dim = ( weight_dim1 + l2_dim_lambda + l2_dim_k + bias_dim1 ) * 2
             else:
