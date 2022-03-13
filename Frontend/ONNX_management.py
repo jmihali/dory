@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -54,7 +54,7 @@ class ONNX_management():
         if 'Add' == node_iterating.op_type:
             new_parameters['input_index_add'] = [input_i for input_i in node_iterating.input if 'weight' not in input_i][1]
             new_parameters['branch_in'] = 1
-        new_parameters['output_index'] = node_iterating.output[0] 
+        new_parameters['output_index'] = node_iterating.output[0]
         new_parameters['pads'] = [0, 0, 0, 0]
         ## attributes
         for attribute in node_iterating.attribute:
@@ -89,7 +89,7 @@ class ONNX_management():
                 try:
                     if np.array(shape_i.type.tensor_type.shape.dim).shape[0] == 3:
                         new_parameters['output_dim'] = [1, shape_i.type.tensor_type.shape.dim[2].dim_value]
-                    elif np.array(shape_i.type.tensor_type.shape.dim).shape[0] == 4: 
+                    elif np.array(shape_i.type.tensor_type.shape.dim).shape[0] == 4:
                         new_parameters['output_dim'] = [shape_i.type.tensor_type.shape.dim[2].dim_value, shape_i.type.tensor_type.shape.dim[3].dim_value]
                     else:
                         shape_i.type.tensor_type.shape.dim[3]
@@ -102,7 +102,7 @@ class ONNX_management():
                     ch_in_temp = new_parameters['ch_in']
                     if np.array(shape_i.type.tensor_type.shape.dim).shape[0] == 3:
                         new_parameters['input_dim'] = [1, shape_i.type.tensor_type.shape.dim[2].dim_value]
-                    elif np.array(shape_i.type.tensor_type.shape.dim).shape[0] == 4: 
+                    elif np.array(shape_i.type.tensor_type.shape.dim).shape[0] == 4:
                         new_parameters['input_dim'] = [shape_i.type.tensor_type.shape.dim[2].dim_value, shape_i.type.tensor_type.shape.dim[3].dim_value]
                     else:
                         shape_i.type.tensor_type.shape.dim[3]
@@ -115,7 +115,7 @@ class ONNX_management():
                     if node_iterating.op_type in ['MatMul', 'Gemm']:
                         new_parameters['ch_in'] = self.PULP_Nodes_Graph[node].get_parameter('ch_out')
                         ch_in_temp = new_parameters['ch_in']
-                        for out in self.PULP_Nodes_Graph[node].get_parameter('output_dim'): 
+                        for out in self.PULP_Nodes_Graph[node].get_parameter('output_dim'):
                             new_parameters['ch_in'] *=out
                         new_parameters['input_dim'] = [1, 1]
                     else:
@@ -128,13 +128,14 @@ class ONNX_management():
         if first_node == 1:
             dim = []
             ######## FOR 1D NOT WORKING ###########
-            if np.array(model.graph.input[0].type.tensor_type.shape.dim).shape[0] == 4: 
+            if np.array(model.graph.input[0].type.tensor_type.shape.dim).shape[0] == 4:
                 dim.append(model.graph.input[0].type.tensor_type.shape.dim[-2].dim_value)
                 dim.append(model.graph.input[0].type.tensor_type.shape.dim[-1].dim_value)
-            elif np.array(model.graph.input[0].type.tensor_type.shape.dim).shape[0] == 3: 
+                new_parameters['ch_in'] = model.graph.input[0].type.tensor_type.shape.dim[-3].dim_value
+            elif np.array(model.graph.input[0].type.tensor_type.shape.dim).shape[0] == 3:
                 dim.append(1)
                 dim.append(model.graph.input[0].type.tensor_type.shape.dim[-1].dim_value)
-            new_parameters['ch_in'] = model.graph.input[0].type.tensor_type.shape.dim[-3].dim_value
+                new_parameters['ch_in'] = model.graph.input[0].type.tensor_type.shape.dim[-2].dim_value
             new_parameters['input_dim'] = dim
         new_parameters['ch_in'] = int ( new_parameters['ch_in'] / new_parameters['group'] )
         new_parameters['name'] = node_iterating.op_type
@@ -204,7 +205,7 @@ class ONNX_management():
 
     def search_constant(self, index, model):
         ## searching for the parameters of BN abd Relu
-        constant = 'empty'     
+        constant = 'empty'
         for node_iterating in (model.graph.initializer):
             if node_iterating.name == index:
                 constant = numpy_helper.to_array(node_iterating)
@@ -214,7 +215,7 @@ class ONNX_management():
         return constant
 
     def check_rules(self, node):
-        out = node.output[0] 
+        out = node.output[0]
         string_rule = node.op_type
         if string_rule in [*self.rules.values()]:
             return string_rule
@@ -244,7 +245,7 @@ class ONNX_management():
         for i,node in enumerate(self.PULP_Nodes_Graph):
             logging.debug(f'\nNode: {i}')
             node.log_parameters()
-        log = logging.getLogger() 
+        log = logging.getLogger()
         for hdlr in log.handlers[:]:
             hdlr.close()
             log.removeHandler(hdlr)
@@ -323,14 +324,14 @@ class ONNX_management():
                         PULP_graph_index_of_input2_add_node = j
                 if self.PULP_Nodes_Graph[PULP_graph_index_of_input1_add_node].get_parameter('branch_out') != 1 and self.PULP_Nodes_Graph[PULP_graph_index_of_input2_add_node].get_parameter('branch_out') != 1:
                     if(PULP_graph_index_of_input1_add_node > PULP_graph_index_of_input2_add_node):
-                        self.PULP_Nodes_Graph[PULP_graph_index_of_input2_add_node].add_parameter('branch_change', 1) 
+                        self.PULP_Nodes_Graph[PULP_graph_index_of_input2_add_node].add_parameter('branch_change', 1)
                     else:
-                        self.PULP_Nodes_Graph[PULP_graph_index_of_input1_add_node].add_parameter('branch_change', 1) 
+                        self.PULP_Nodes_Graph[PULP_graph_index_of_input1_add_node].add_parameter('branch_change', 1)
                 if int(input1_add) > int(input2_add):
                     input2_add = input1_add
                 for node_two in self.PULP_Nodes_Graph:
                     if node_two.output_index == input2_add:
-                        node_two.add_parameter('branch_last', 1)  
+                        node_two.add_parameter('branch_last', 1)
 
     def check_graph(self):
         # Logging function to report exported graph of PULP
@@ -364,7 +365,7 @@ class ONNX_management():
                 first_node = 0
                 continue
             if node_iterating.op_type in self.layers_neglected and int(node_iterating.output[0]) > int(self.PULP_Nodes_Graph[-1].get_parameter('output_index')):
-                self.PULP_Nodes_Graph[-1].add_parameter('output_index', node_iterating.output[0]) 
+                self.PULP_Nodes_Graph[-1].add_parameter('output_index', node_iterating.output[0])
                 continue
         self.print_PULP_graph("PULP_Raw_Graph")
         self.fuse_graph()
@@ -375,4 +376,3 @@ class ONNX_management():
         self.check_graph()
         return self.PULP_Nodes_Graph
 
-    
