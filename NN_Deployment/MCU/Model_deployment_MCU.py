@@ -5,7 +5,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,7 +20,7 @@
 
 import sys
 sys.path.append('../')
-from Model_deployment import Model_deployment 
+from Model_deployment import Model_deployment
 import os
 from collections import OrderedDict
 from mako.template import Template
@@ -88,11 +88,11 @@ class Model_deployment_MCU(Model_deployment):
                 BitOut = PULP_Nodes_Graph[i].out_activation_bits
                 BitW = PULP_Nodes_Graph[i].weight_bits
                 if 'DW' in PULP_Nodes_Graph[i].name:
-                    layer_mixed_list.append(f'xpulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
+                    layer_mixed_list.append(f'pulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
                 elif 'Conv' in PULP_Nodes_Graph[i].name:
-                    layer_mixed_list.append(f'xpulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
+                    layer_mixed_list.append(f'pulp_nn_xconv_u{BitIn}_u{BitOut}_i{BitW}.c')
                 if ('Conv' in PULP_Nodes_Graph[i].name or 'Gemm' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name) and BitOut!=32:
-                    layer_mixed_list.append(f'xpulp_nn_matmul_u{BitIn}_u{BitOut}_i{BitW}.c')
+                    layer_mixed_list.append(f'pulp_nn_xmatmul_u{BitIn}_u{BitOut}_i{BitW}.c')
                 if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
                     if BitOut==32:
                         layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
@@ -170,12 +170,13 @@ class Model_deployment_MCU(Model_deployment):
                     os.system('cp ../Backend_Kernels/pulp-nn-mixed/XpulpV2/' + version +'/src/Add/' + layer + ' ./application/DORY_network/src/')
         elif "mixed-hw" in optional:
             os.system('cp ../Backend_Kernels/pulp-nn-mixed/XpulpNN/' + version +'/include/*  ./application/DORY_network/inc/')
+            os.system('cp ../Backend_Kernels/pulp-nn-mixed/XpulpNN/' + version +'/src/SupportFunctions/pulp_nn_utils.c  ./application/DORY_network/src/')
             for layer in layer_mixed_list:
-                if layer.split('_')[2] == 'conv':
+                if layer.split('_')[2] == 'xconv':
                     os.system('cp ../Backend_Kernels/pulp-nn-mixed/XpulpNN/' + version +'/src/Convolution/' + layer + ' ./application/DORY_network/src/')
                 elif layer.split('_')[2] == 'depthwise':
                     os.system('cp ../Backend_Kernels/pulp-nn-mixed/XpulpNN/' + version +'/src/Depthwise/' + layer + ' ./application/DORY_network/src/')
-                elif layer.split('_')[2] == 'matmul':
+                elif layer.split('_')[2] == 'xmatmul':
                     os.system('cp ../Backend_Kernels/pulp-nn-mixed/XpulpNN/' + version +'/src/MatrixMultiplication/' + layer + ' ./application/DORY_network/src/')
                 elif layer.split('_')[2] == 'linear':
                     if layer.split('_')[4] == 'i32':
