@@ -4,7 +4,7 @@
  * Francesco Conti <f.conti@unibo.it>
  *
  * Copyright (C) 2018-2020 University of Bologna
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,12 +15,13 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License. 
+ * limitations under the License.
  */
 
 #include "${func_name}.h"
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
+//#define PROFILE_LAYER
 % endif
 
 void ${func_name}(
@@ -70,23 +71,23 @@ void ${func_name}(
   DMA_copy_lambda.stride_1d = 0;
   DMA_copy_lambda.dir = 1;
   DMA_copy_lambda.dma_channel = dory_dma_channel;
-  
+
   % if flag_DW == 1:
   DMA_copy_x.hwc_to_chw = 1;
   % else:
   DMA_copy_x.hwc_to_chw = 0;
-  % endif  
+  % endif
   DMA_copy_x.stride_2d = ${x_stride_w_byte};
   DMA_copy_x.stride_1d = ${x_stride_c_byte};
   DMA_copy_x.dir = 1;
   DMA_copy_x.dma_channel = dory_dma_channel;
-  
+
   DMA_copy_W.hwc_to_chw = 0;
   DMA_copy_W.stride_2d = ${W_stride_nof_byte};
   DMA_copy_W.stride_1d = ${W_stride_hw_byte};
   DMA_copy_W.dir = 1;
   DMA_copy_W.dma_channel = dory_dma_channel;
-  
+
   DMA_copy_y.hwc_to_chw = 0;
   DMA_copy_y.stride_2d = ${y_stride_w_byte};
   DMA_copy_y.stride_1d = ${y_stride_c_byte};
@@ -101,7 +102,7 @@ void ${func_name}(
   volatile unsigned short  x_tile_size_byte;
   volatile unsigned short  x_length_nif_byte;
   volatile int pad_offset_h, pad_offset_w;
-% endif  
+% endif
   volatile unsigned short  W_tile_size_nof;
   volatile unsigned short  W_tile_size_nif;
   volatile unsigned short  W_tile_size_byte;
@@ -153,6 +154,9 @@ void ${func_name}(
   uint16_t out_mult = out_mult_in;
 % endif
   uint16_t out_shift = out_shift_in;
+#ifdef PROFILE_LAYER
+  int total_kernel_cycles=0, perf_cyc;
+#endif
 
   ////////////////////////////
   // First tile transfering //
@@ -220,16 +224,16 @@ void ${func_name}(
   % if tile_dim_nif != 1 and flag_DW == 0:
     // loop nest is nof,h,w,nif
     _i_nif_load += 1;
-    if(_i_nif_load==${tile_dim_nif}) 
+    if(_i_nif_load==${tile_dim_nif})
     {
       _i_nif_load = 0;
   % endif
       _i_w_load += 1;
-      if(_i_w_load==${tile_dim_w}) 
+      if(_i_w_load==${tile_dim_w})
       {
         _i_w_load = 0;
         _i_h_load += 1;
-        if(_i_h_load==${tile_dim_h}) 
+        if(_i_h_load==${tile_dim_h})
         {
           _i_h_load = 0;
       % if flag_DW == 1:
@@ -379,14 +383,23 @@ void ${func_name}(
     % if tile_dim_nof*tile_dim_nif*tile_dim_h*tile_dim_w == 1 or flag_DW == 1:
     asm volatile("": : :"memory");
     % endif
+#ifdef PROFILE_LAYER
+    // perf measurement begin
+    if (pi_core_id() == 0) {
+      pi_perf_conf(1<<PI_PERF_CYCLES);
+      pi_perf_reset();
+      pi_perf_stop();
+      pi_perf_start();
+    }
+#endif
   % if flag_DW == 0 and optional_type == '8bit' and (fs1*fs2>1 or stride>1):
     pulp_nn_conv_Ho_parallel(
   % elif flag_DW == 0 and optional_type == '8bit' and fs1*fs2==1  and 'Gemm' not in func_name and 'MatMul' not in func_name:
     pulp_nn_pointwise_HoWo_parallel(
   % elif flag_DW == 0 and optional_type == '8bit' and '_last' in func_name and ('Gemm' in func_name or 'MatMul' in func_name):
-    pulp_nn_linear_out_32( 
+    pulp_nn_linear_out_32(
   % elif flag_DW == 0 and optional_type == '8bit' and ('Gemm' in func_name or 'MatMul' in func_name):
-    pulp_nn_linear( 
+    pulp_nn_linear(
   % elif flag_DW == 0 and 'mixed-sw' in optional_type  and ('Conv' in func_name):
     pulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed-hw' in optional_type  and ('Conv' in func_name):
@@ -404,7 +417,7 @@ void ${func_name}(
   % elif flag_DW == 1 and optional_type == 'mixed-sw':
     pulp_nn_depthwise_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 1 and optional_type == 'mixed-hw':
-    xpulp_nn_depthwise_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}( 
+    xpulp_nn_depthwise_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
   % endif
   % if 'Gemm' in func_name or 'MatMul' in func_name:
       x, 0, y, W,
@@ -450,8 +463,19 @@ void ${func_name}(
       );
   % endif
     dory_cores_barrier();
+#ifdef PROFILE_LAYER
+    if (pi_core_id() == 0) {
+      pi_perf_stop();
+      perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+      printf("[%d] Kernel execution finished [tile=%d  num_cycles=%d]\n", pi_core_id(), iter, perf_cyc);
+      total_kernel_cycles = total_kernel_cycles + perf_cyc;
+      if (iter == (total_tiles-1)) {
+        printf("[%d] Total cycles spent on kernel=%d\n", pi_core_id(), total_kernel_cycles);
+      }
+    }
+#endif
     % if tile_dim_nif != 1 and flag_DW == 0:
-    if(_i_nif_load == 0) 
+    if(_i_nif_load == 0)
     {
     % endif
     // wait for DMA write/read
@@ -459,24 +483,24 @@ void ${func_name}(
       dory_dma_barrier(DMA_copy_x);
       dory_dma_barrier(DMA_copy_W);
 
-    % if FLAG_BATCHNORM == 1:   
+    % if FLAG_BATCHNORM == 1:
     if(iter < (total_tiles-1) && (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec))
-    {                        
+    {
       dory_dma_barrier(DMA_copy_k);
       dory_dma_barrier(DMA_copy_lambda);
     }
-    % endif      
+    % endif
       DMA_copy_y.ext = dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
       DMA_copy_y.loc = (l1_buffer + ${l1_y_offset}) + db_y;
       DMA_copy_y.number_of_2d_copies = y_tile_size_h;
       DMA_copy_y.number_of_1d_copies = y_tile_size_w;
       DMA_copy_y.length_1d_copy = y_length_nof_byte;
-      dory_dma_memcpy_async(DMA_copy_y);   
+      dory_dma_memcpy_async(DMA_copy_y);
 % if tile_dim_nif != 1 and flag_DW == 0:
     }
 % endif
     // update prev iterators
-    db_state_y = ! db_state_y; 
+    db_state_y = ! db_state_y;
     _i_nof_exec = _i_nof_load;
     _i_nif_exec = _i_nif_load;
     _i_h_exec = _i_h_load;

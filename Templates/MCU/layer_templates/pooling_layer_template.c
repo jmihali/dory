@@ -21,6 +21,7 @@ ${verbose_log}
 #include "${func_name}.h"
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
+//#define PROFILE_LAYER
 % endif
 void ${func_name}(
   void *args
@@ -109,6 +110,10 @@ void ${func_name}(
   int last_h_load = (${tile_dim_h} == 1) ? 1 : 0;
   int last_w_load = (${tile_dim_w} == 1) ? 1 : 0;
   int iter;
+#ifdef PROFILE_LAYER
+  int total_kernel_cycles=0, perf_cyc;
+#endif
+
   // tile loop nest
   for(iter=0; iter<${tile_dim_nof}*${tile_dim_h}*${tile_dim_w}; iter++) {
     // loop nest is nof,h,w,(nif=0)
@@ -203,6 +208,15 @@ void ${func_name}(
       p_r = ${padding_right};
     dory_cores_barrier();
 
+#ifdef PROFILE_LAYER
+    // perf measurement begin
+    if (pi_core_id() == 0) {
+      pi_perf_conf(1<<PI_PERF_CYCLES);
+      pi_perf_reset();
+      pi_perf_stop();
+      pi_perf_start();
+    }
+#endif
 // aggiungere padding su tutti i lati, acc_out, and filter asymettric
   % if 'Max' in optional:
     % if optional_type == 'mixed-sw':
@@ -243,6 +257,17 @@ void ${func_name}(
 % endif
     );
     dory_cores_barrier();
+#ifdef PROFILE_LAYER
+    if (pi_core_id() == 0) {
+      pi_perf_stop();
+      perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+      printf("[%d] Kernel execution finished [tile=%d  num_cycles=%d]\n", pi_core_id(), iter, perf_cyc);
+      total_kernel_cycles = total_kernel_cycles + perf_cyc;
+      if (iter == ${tile_dim_nof}*${tile_dim_h}*${tile_dim_w}-1) {
+        printf("[%d] Total cycles spent on kernel=%d\n", pi_core_id(), total_kernel_cycles);
+      }
+    }
+#endif
     dory_dma_barrier(DMA_copy_x);
     dory_dma_barrier(DMA_copy_y);
     // transfering of output to L2
