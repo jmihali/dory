@@ -41,6 +41,7 @@
 #define FLASH_BUFF_SIZE 128
 % if verbose:
 #define VERBOSE 1
+#define PROFILE_APPLICATION
 % endif
 
 % if sdk == 'pulp_sdk':
@@ -249,11 +250,13 @@ static int layer_with_weights[${len(PULP_Nodes_Graph)}] = {\
 % endfor
 };
 % if 'Yes' in performance:
+#ifdef PROFILE_APPLICATION
 static int NODEs_MACS[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 ${PULP_Nodes_Graph[i].MACs}${'' if loop.last else ', '}\
 % endfor
 };
+#endif
 % endif
 
 static uint8_t flashBuffer[FLASH_BUFF_SIZE];
@@ -292,7 +295,6 @@ static void check_layer_plus(char *output, int dim) {
 #ifdef VERBOSE
 // check for input/output acitvation checksum
 static void check_layer(char *output, int check_sum_true, int dim) {
-  printf("Calling check_layer()...\n");
   int checksum = 0;
   char *ptr = (char *) output;
   for(int j=0; j<dim; j++) {
@@ -657,8 +659,10 @@ void network_run(unsigned int L3_weights_size)
 /* --------- SECTION 1 END ---------- */
 /* ---------------------------------- */
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
+#ifdef PROFILE_APPLICATION
   // perf measurement begin
   int cycle_network_execution = 0;
+#endif
 % endif
 /* MAIN SECTION
   - for loop over all the layers of the network
@@ -728,11 +732,13 @@ void network_run(unsigned int L3_weights_size)
       inmul2,
       out_shift};
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
+#ifdef PROFILE_APPLICATION
     // perf measurement begin
     pi_perf_conf(1<<PI_PERF_CYCLES);
     pi_perf_reset();
     pi_perf_stop();
     pi_perf_start();
+#endif
 % endif
     switch (i)
     {
@@ -744,12 +750,15 @@ void network_run(unsigned int L3_weights_size)
     }
     pi_cl_team_barrier(0);
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
+#ifdef PROFILE_APPLICATION
     // performance measurements: end
     pi_perf_stop();
     int perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
     cycle_network_execution += perf_cyc;
+#endif
 % endif
 % if 'Yes' in performance:
+#ifdef PROFILE_APPLICATION
     int MACs = NODEs_MACS[i];
     float perf_MAC =  (float)MACs/perf_cyc;
     if (pi_core_id() == 0)
@@ -759,6 +768,7 @@ void network_run(unsigned int L3_weights_size)
       printf(" MAC/cycle: %-8f,",perf_MAC );
       printf(" n. of Cores: %d\n",NUM_CORES);
     }
+#endif
 % endif
 
     // prevents error from compiler
@@ -975,6 +985,7 @@ void network_run(unsigned int L3_weights_size)
 /* ---------------------------------- */
 
 % if 'Perf_final' in verbose_level:
+#ifdef PROFILE_APPLICATION
   int cid = pi_core_id();
   int MACs = ${MACs};
   float perf_MAC =  (float)MACs/cycle_network_execution;
@@ -985,6 +996,7 @@ void network_run(unsigned int L3_weights_size)
     printf("[%d] : MAC/cycle: %f\n",cid,perf_MAC );
     printf("[%d] : n. of Cores: %d\n",cid,NUM_CORES);
   }
+#endif
 % endif
 
   if (pi_core_id()==0)
