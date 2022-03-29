@@ -533,6 +533,16 @@ void network_run(unsigned int L3_weights_size)
 /* ---------------------------------- */
 /* -------- SECTION 0 BEGIN --------- */
 /* ---------------------------------- */
+#ifdef PROFILE_APPLICATION
+  int perf_cyc;
+  int cycle_network_execution = 0;
+  int cycles_alloc_l1_l2_buffer = 0;
+  int cycles_alloc_weights_input_output = 0;
+  int cycles_copy_weights_next_layer = 0;
+  int cycles_input_check = 0;
+  int cycles_output_check = 0;
+  int cycles_dealloc_alloc_weights = 0;
+#endif
   uint16_t out_mult = 0;
   uint16_t out_shift = 0;
   uint16_t inmul1 = 0;
@@ -571,8 +581,15 @@ void network_run(unsigned int L3_weights_size)
   bypass_weights = d_buffering_weights_e ? L2_weights_2 : L2_weights_1;
   pi_cl_alloc_req_t alloc_req = {0};
   pi_cl_free_req_t free_req = {0};
+
   if (pi_core_id()==0)
   {
+#ifdef PROFILE_APPLICATION
+    pi_perf_stop();
+    pi_perf_reset();
+    pi_perf_conf(1<<PI_PERF_CYCLES);
+    pi_perf_start();
+#endif
     pi_cl_l2_malloc((uint32_t) ${l2_buffer_size}, &alloc_req);
     L2_buffer_allocation = pi_cl_l2_malloc_wait(&alloc_req);
     L2_buffer_tofree_copy = L2_buffer_allocation;
@@ -581,6 +598,12 @@ void network_run(unsigned int L3_weights_size)
 #ifdef VERBOSE
     printf("\nL2 Buffer alloc initial\t@ 0x%08x:\t%s\n", (unsigned int)L2_buffer_allocation, L2_buffer_allocation?"Ok":"Failed");
     printf("L1 Buffer alloc initial\t@ 0x%08x:\t%s\n\n", (unsigned int)l1_buffer, l1_buffer?"Ok":"Failed");
+#endif
+#ifdef PROFILE_APPLICATION
+    pi_perf_stop();
+    perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+    cycles_alloc_l1_l2_buffer += perf_cyc;
+    //printf("[%d] L2&L1 Buffer allocation finished - num_cycles: %d\n", pi_core_id(), perf_cyc);
 #endif
   }
 /* ---------------------------------- */
@@ -594,8 +617,15 @@ void network_run(unsigned int L3_weights_size)
 /* ---------------------------------- */
 /* -------- SECTION 1 BEGIN --------- */
 /* ---------------------------------- */
+
   if(pi_core_id()==0)
   {
+#ifdef PROFILE_APPLICATION
+    pi_perf_stop();
+    pi_perf_reset();
+    pi_perf_conf(1<<PI_PERF_CYCLES);
+    pi_perf_start();
+#endif
 /*
   - first layer weights allocation and copy
 */
@@ -655,16 +685,20 @@ void network_run(unsigned int L3_weights_size)
       );
     if(L2_output == NULL) return -1;
     begin_end_n = !begin_end_n;
+
+#ifdef PROFILE_APPLICATION
+    pi_perf_stop();
+    perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+    cycles_alloc_weights_input_output += perf_cyc;
+    //printf("[%d] Allocation for 1st&2nd layer weights, input and output of first layer finished - num_cycles: %d\n", pi_core_id(), perf_cyc);
+#endif
   }
+
+
 /* ---------------------------------- */
 /* --------- SECTION 1 END ---------- */
 /* ---------------------------------- */
-% if 'Yes' in performance or 'Perf_final' in verbose_level:
-#ifdef PROFILE_APPLICATION
-  // perf measurement begin
-  int cycle_network_execution = 0;
-#endif
-% endif
+
 /* MAIN SECTION
   - for loop over all the layers of the network
   - double buffering using L3
@@ -678,6 +712,12 @@ void network_run(unsigned int L3_weights_size)
   {
     if(pi_core_id()==0)
     {
+#ifdef PROFILE_APPLICATION
+      pi_perf_stop();
+      pi_perf_reset();
+      pi_perf_conf(1<<PI_PERF_CYCLES);
+      pi_perf_start();
+#endif
       // copy of weights of next layers:
       // 1. copy only if we have to allocate the weights (hence not weights tiled from L3 and not pooling/add layer)
       // 2. waits before the read if we want to implement a double buffering, after if not.
@@ -693,12 +733,25 @@ void network_run(unsigned int L3_weights_size)
             pi_cl_ram_read_wait(&buff_req1);
         }
       }
+#ifdef PROFILE_APPLICATION
+      pi_perf_stop();
+      perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+      cycles_copy_weights_next_layer += perf_cyc;
+      //printf("[%d] Copying of weights of next layer finished - num_cycles: %d\n", pi_core_id(), perf_cyc);
+#endif
     }
+
 
 % if verbose_level == 'Check_all+Perf_final':
 #ifdef VERBOSE
     if(pi_core_id()==0)
     {
+#ifdef PROFILE_APPLICATION
+      pi_perf_stop();
+      pi_perf_reset();
+      pi_perf_conf(1<<PI_PERF_CYCLES);
+      pi_perf_start();
+#endif
       if (L3_input_layers[i]==1)
         printf("In in L3\n");
       else if (i==0) {
@@ -711,9 +764,16 @@ void network_run(unsigned int L3_weights_size)
       }
       else
         printf("Switching branch, already checked activation\n");
+#ifdef PROFILE_APPLICATION
+      pi_perf_stop();
+      perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+      cycles_input_check += perf_cyc;
+      //printf("[%d] Checking input of layer %d finished - num_cycles: %d\n", pi_core_id(), i, perf_cyc);
+#endif
     }
 #endif
 % endif
+
     out_mult = out_mult_vector[i];
     out_shift = out_shift_vector[i];
     inmul1 = inmul1_vector[i];
@@ -734,11 +794,12 @@ void network_run(unsigned int L3_weights_size)
       out_shift};
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
 #ifdef PROFILE_APPLICATION
-    // perf measurement begin
-    pi_perf_conf(1<<PI_PERF_CYCLES);
-    pi_perf_reset();
-    pi_perf_stop();
-    pi_perf_start();
+    if (pi_core_id() == 0){
+      pi_perf_stop();
+      pi_perf_reset();
+      pi_perf_conf(1<<PI_PERF_CYCLES);
+      pi_perf_start();
+    }
 #endif
 % endif
     switch (i)
@@ -752,10 +813,11 @@ void network_run(unsigned int L3_weights_size)
     pi_cl_team_barrier(0);
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
 #ifdef PROFILE_APPLICATION
-    // performance measurements: end
-    pi_perf_stop();
-    int perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
-    cycle_network_execution += perf_cyc;
+    if (pi_core_id() == 0){
+      pi_perf_stop();
+      perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+      cycle_network_execution += perf_cyc;
+    }
 #endif
 % endif
 % if 'Yes' in performance:
@@ -787,6 +849,12 @@ void network_run(unsigned int L3_weights_size)
 #ifdef VERBOSE
     if(pi_core_id()==0)
     {
+#ifdef PROFILE_APPLICATION
+      pi_perf_stop();
+      pi_perf_reset();
+      pi_perf_conf(1<<PI_PERF_CYCLES);
+      pi_perf_start();
+#endif
       printf("Layer %s %d ended: \n", Layers_name[i], i);
       if (i < ${len(PULP_Nodes_Graph) - 1})
       {
@@ -796,7 +864,6 @@ void network_run(unsigned int L3_weights_size)
           printf("Checking output of layer %d...\n", i);
           check_layer(L2_output, check_activations_out[i], check_activations_out_dimension[i]);
         }
-
       }
       else
       {
@@ -806,20 +873,61 @@ void network_run(unsigned int L3_weights_size)
       {
         check_layer_plus(L2_output,check_activations_out_dimension[i]);
       }
+#ifdef PROFILE_APPLICATION
+      pi_perf_stop();
+      perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+      cycles_output_check += perf_cyc;
+      //printf("[%d] Checking output of layer %d finished - num_cycles: %d\n", pi_core_id(), i, perf_cyc);
+#endif
     }
 #endif
 % elif verbose_level == 'Last+Perf_final':
     if(pi_core_id()==0)
+    {
+#ifdef PROFILE_APPLICATION
+      pi_perf_stop();
+      pi_perf_reset();
+      pi_perf_conf(1<<PI_PERF_CYCLES);
+      pi_perf_start();
+#endif
       if (i == ${len(PULP_Nodes_Graph) - 1})
           check_layer_last((int32_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+#ifdef PROFILE_APPLICATION
+      pi_perf_stop();
+      perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+      cycles_output_check += perf_cyc;
+      //printf("[%d] Checking output of layer %d finished - num_cycles: %d\n", pi_core_id(), i, perf_cyc);
+#endif
+    }
 % else:
 #ifdef VERBOSE
     if(pi_core_id()==0)
     {
+#ifdef PROFILE_APPLICATION
+      pi_perf_stop();
+      pi_perf_reset();
+      pi_perf_conf(1<<PI_PERF_CYCLES);
+      pi_perf_start();
+#endif
       printf("Layer %s %d ended: \n", Layers_name[i], i);
+#ifdef PROFILE_APPLICATION
+      pi_perf_stop();
+      perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+      cycles_output_check += perf_cyc;
+      //printf("[%d] Checking output of layer %d finished - num_cycles: %d\n", pi_core_id(), i, perf_cyc);
+#endif
     }
 #endif
 % endif
+
+#ifdef PROFILE_APPLICATION
+    if (pi_core_id() == 0){
+      pi_perf_stop();
+      pi_perf_reset();
+      pi_perf_conf(1<<PI_PERF_CYCLES);
+      pi_perf_start();
+    }
+#endif
     if (i < ${len(PULP_Nodes_Graph) - 1})
     {
       if(pi_core_id()==0)
@@ -976,6 +1084,15 @@ void network_run(unsigned int L3_weights_size)
         begin_end_n = !begin_end_n;
       }
     }
+
+#ifdef PROFILE_APPLICATION
+    if (pi_core_id() == 0){
+      pi_perf_stop();
+      perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+      cycles_dealloc_alloc_weights += perf_cyc;
+      //printf("[%d] Deallocation of weights & allocation of weights for next layer finished - num_cycles: %d\n", pi_core_id(), perf_cyc);
+    }
+#endif
   }
 /* ---------------------------------- */
 /* --------- SECTION 2 END ---------- */
@@ -996,6 +1113,14 @@ void network_run(unsigned int L3_weights_size)
     printf("[%d] : MACs: %d\n",cid,MACs );
     printf("[%d] : MAC/cycle: %f\n",cid,perf_MAC );
     printf("[%d] : n. of Cores: %d\n",cid,NUM_CORES);
+
+    printf("\n[%d] cycles_network_execution : %d\n", cid, cycle_network_execution);
+    printf("[%d] cycles_alloc_l1_l2_buffer : %d\n", cid, cycles_alloc_l1_l2_buffer);
+    printf("[%d] cycles_alloc_weights_input_output : %d\n", cid, cycles_alloc_weights_input_output);
+    printf("[%d] cycles_copy_weights_next_layer : %d\n", cid, cycles_copy_weights_next_layer);
+    printf("[%d] cycles_input_check : %d\n", cid, cycles_input_check);
+    printf("[%d] cycles_output_check : %d\n", cid, cycles_output_check);
+    printf("[%d] cycles_dealloc_alloc_weights : %d\n", cid, cycles_dealloc_alloc_weights);
   }
 #endif
 % endif
@@ -1029,7 +1154,7 @@ void cluster_main(void *arg)
   if (pi_core_id()==0){
     // performance measurements: end
     pi_perf_stop();
-    int perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
+    int perf_cyc = pi_perf_read(PI_PERF_CYCLES);
     printf("Total cycles for network_run()=%d\n", perf_cyc);
   }
 #endif
