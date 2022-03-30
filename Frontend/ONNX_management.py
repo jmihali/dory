@@ -288,7 +288,7 @@ class ONNX_management():
         # adding input bit precision
         for i, nodes in enumerate(self.PULP_Nodes_Graph):
             if i == 0:
-                nodes.add_parameter('input_activation_bits', 8)
+                nodes.add_parameter('input_activation_bits', 2)
             else:
                 for j, precedent_nodes in enumerate(self.PULP_Nodes_Graph[:i]):
                     if precedent_nodes.output_index == nodes.input_index:

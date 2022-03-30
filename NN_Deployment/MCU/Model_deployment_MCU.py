@@ -5,7 +5,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,7 +20,7 @@
 
 import sys
 sys.path.append('../')
-from Model_deployment import Model_deployment 
+from Model_deployment import Model_deployment
 import os
 from collections import OrderedDict
 from mako.template import Template
@@ -302,6 +302,18 @@ class Model_deployment_MCU(Model_deployment):
             x_in = x_in.flatten().numpy().astype(int)
         for i, _ in enumerate(x_in):
             x_in[i] = np.uint8(x_in[i])
+
+        if PULP_Nodes_Graph[0].weight_bits == 2:
+            temp = []
+            z = 0
+            for i_x, _ in enumerate(x_in):
+                if (z % 4) == 0:
+                    temp.append(x_in[i_x]& 0x03)
+                else:
+                    temp[-1] += (x_in[i_x]& 0x03) << 2 * (z % 4)
+                z += 1
+            x_in = np.array(temp)
+
         string_layer = "inputs.hex"
         save_s = './application/DORY_network/' + string_layer
 
