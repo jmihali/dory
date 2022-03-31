@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -42,7 +42,7 @@ class Quantlab_onnx(ONNX_management):
         layers_neglected = ['Cast', 'Floor', 'Flatten', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
         layers_to_node = ['AveragePool', 'MaxPool', 'Conv', 'Gemm', 'MatMul', 'GlobalAveragePool', 'Add']
         backend = ['ConvBNRelu', 'ConvRelu', 'ConvDWBNRelu', 'ConvDWRelu', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'LinearBNRelu', 'GemmRelu', 'Gemm', 'MatMulRelu', 'MatMul', 'Add', 'AddBNRelu', 'BNReluAddBNRelu',
-                    'PadConvBNRelu', 'PadConvRelu', 'PadConvDWBNRelu', 'PadConvDWRelu', 'PadAveragePool', 'PadGlobalAveragePool', 'PadMaxPool', 'PadLinearBNRelu', 'PadGemmRelu', 'PadGemm', 'PadMatMulRelu', 'PadMatMul', 
+                    'PadConvBNRelu', 'PadConvRelu', 'PadConvDWBNRelu', 'PadConvDWRelu', 'PadAveragePool', 'PadGlobalAveragePool', 'PadMaxPool', 'PadLinearBNRelu', 'PadGemmRelu', 'PadGemm', 'PadMatMulRelu', 'PadMatMul',
                     'PadAdd', 'PadAddBNRelu', 'PadBNReluAddBNRelu',
                    'AveragePoolBNRelu', 'AveragePoolRelu', 'GlobalAveragePoolBNRelu', 'GlobalAveragePoolRelu',]
         rules = {}
@@ -109,6 +109,7 @@ class Quantlab_onnx(ONNX_management):
                                 inp.append(input_i)
                     pulp_node.add_parameter('input_index', inp[0])
                     pulp_node.add_parameter('output_index',node_iterating.output[0])
+                    pulp_node.add_parameter('weight_bits', node_iterating.attribute[3].i)
                     if np.array(node_iterating.attribute[1].ints).shape[0] == 8:
                         pulp_node.add_parameter('pads',[node_iterating.attribute[1].ints[2],node_iterating.attribute[1].ints[3],node_iterating.attribute[1].ints[6],node_iterating.attribute[1].ints[7]])
                     elif np.array(node_iterating.attribute[1].ints).shape[0] == 6:
