@@ -404,6 +404,8 @@ void ${func_name}(
     pulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed-hw' in optional_type  and ('Conv' in func_name):
     xpulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
+  % elif flag_DW == 0 and '1D_Conv' in optional_type and ('Conv' in func_name):
+    xpulp_nn_conv1d_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name) and y_data_size_byte == 32:
     ${"x" if 'hw' in optional_type else ""}pulp_nn_linear_u${x_data_size_byte}_i${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name):
@@ -439,6 +441,26 @@ void ${func_name}(
       % endif
       );
   % else:
+    % if '1D_Conv' in optional_type:
+      x, im2col,
+      % if has_bias:
+      b,
+      % else:
+      NULL,
+      % endif
+      y, W,
+      % if FLAG_BATCHNORM == 1:
+      k, lambda,
+      % else:
+      0, 0,
+      % endif
+      out_mult, out_shift,
+      x_tile_size_w_exec, x_tile_size_nif_exec,
+      y_tile_size_w, y_tile_size_nof,
+      ${fs1},
+      p_l, p_r, ${stride},
+      ${FLAG_RELU}, ${FLAG_BATCHNORM}
+    % else:
       x, im2col,
       % if has_bias:
       b,
@@ -460,6 +482,7 @@ void ${func_name}(
       ${fs2}, ${fs1},
       p_t, p_b, p_l, p_r, ${stride}, ${stride},
       ${FLAG_RELU}, ${FLAG_BATCHNORM}
+    % endif
       );
   % endif
     dory_cores_barrier();

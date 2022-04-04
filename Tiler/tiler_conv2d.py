@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2018-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -61,6 +61,7 @@ class Tiler_Conv2D():
         self.backend = tiler.backend
         self.dma_parallelization = tiler.dma_parallelization
         self.number_of_clusters = tiler.number_of_clusters
+        self.dilation = tiler.dilation
 
     def get_tiling(self, X, Y, W,
                           relu,
@@ -114,7 +115,7 @@ class Tiler_Conv2D():
         if (self.x_shape[-2] - h_in)==0:
             factor_h_in = 1
         else:
-            factor_h_in = 1 + int(np.ceil((self.x_shape[-2] + p_top + p_bottom - h_in) / (h_in - conv_overlap_h ))) 
+            factor_h_in = 1 + int(np.ceil((self.x_shape[-2] + p_top + p_bottom - h_in) / (h_in - conv_overlap_h )))
             if p_bottom > 0 and (self.x_shape[-2] + p_top - h_in) % (h_in - conv_overlap_h ) == 0 and (h_in - conv_overlap_h ) != 1:
                 factor_h_in = 1 + int((self.x_shape[-2] + p_top - h_in) / (h_in - conv_overlap_h ))
         # report
@@ -236,11 +237,10 @@ class Tiler_Conv2D():
                 self.buffer_size,
                 full_computation=full_computation,
                 multiple_buffering_factor=multiple_buffering_factor,
-                name=name)        
+                name=name)
         name_include.append(name)
         # report
         if tiling is not None:
-
             tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out = tiling
 
             x_tot_str = '[%dx%dx%d]' % (g * n_in, h_in, w_in)
@@ -327,7 +327,8 @@ class Tiler_Conv2D():
                     sdk = self.sdk,
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
-                    dma_parallelization = self.dma_parallelization)
+                    dma_parallelization = self.dma_parallelization,
+                    dilation=self.dilation)
             else:
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W,
@@ -353,7 +354,8 @@ class Tiler_Conv2D():
                     sdk = self.sdk,
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
-                    dma_parallelization = self.dma_parallelization)   
+                    dma_parallelization = self.dma_parallelization,
+                    dilation=self.dilation)
             if (p_top + p_bottom) > 0 and (factor_h_in > 1 or factor_h_out > 1):
                 tiling = self.get_tiling_conv2d_like(
                     DW,
@@ -370,7 +372,7 @@ class Tiler_Conv2D():
                     self.buffer_size,
                     full_computation=full_computation,
                     multiple_buffering_factor=multiple_buffering_factor,
-                    name=name) 
+                    name=name)
                 tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out = tiling
                 in_dim1, out_dim2, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W,
@@ -396,9 +398,10 @@ class Tiler_Conv2D():
                     sdk = self.sdk,
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
-                    dma_parallelization = self.dma_parallelization) 
+                    dma_parallelization = self.dma_parallelization,
+                    dilation=self.dilation)
                 if out_dim2 > out_dim1:
-                    out_dim1 = out_dim2     
+                    out_dim1 = out_dim2
                 h_in_last = h_in
                 h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
                 #### CHECK WELL especially second nested if
@@ -433,7 +436,7 @@ class Tiler_Conv2D():
                     self.buffer_size,
                     full_computation=full_computation,
                     multiple_buffering_factor=multiple_buffering_factor,
-                    name=name)  
+                    name=name)
                 tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out = tiling
                 in_dim1, out_dim2, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W,
@@ -459,22 +462,23 @@ class Tiler_Conv2D():
                     sdk = self.sdk,
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
-                    dma_parallelization = self.dma_parallelization)
+                    dma_parallelization = self.dma_parallelization,
+                    dilation=self.dilation)
                 if out_dim2 > out_dim1:
-                    out_dim1 = out_dim2   
+                    out_dim1 = out_dim2
                 name_include.append(name + '_p_t')
-                name_include.append(name + '_p_b')                   
+                name_include.append(name + '_p_b')
             if self.test_location == 'L3_partial':
                 full_net = 0
             else:
-                full_net = 1 
+                full_net = 1
             # print template layer for L3 execution of the layer, if present.
             if L3_tiling == 1 or input_L3 == 1:
                 print_template_layer_L3(
                     X, W, Y, fs1, fs2, p_top, s,
                     self.BitIn, self.BitW, self.BitOut,
-                    factor_ch_out, 
-                    factor_h_out, 
+                    factor_ch_out,
+                    factor_h_out,
                     factor_h_in,
                     name_include,
                     int(n_out * w_out * h_out * self.BitOut / 8),
@@ -657,7 +661,7 @@ class Tiler_Conv2D():
             ds_W_scale = int(math.floor(32 * self.BitW))
             ds_bn_scale = int(math.floor(32 * self.BitActivation))
             # geometrical constraint
-            if db_x == 2 and db_O == 2:   
+            if db_x == 2 and db_O == 2:
                 solver.Add(tile_h_out * s == (tile_h_in - (fs1 - 1) + (s - 1)))
             solver.Add(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1) + abs(solver.Min(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1), 1) - 1) * fs1 >= fs1)
             constr_in = db_x * ds_x_scale * n_in * g * tile_h_in * w_in
@@ -683,9 +687,9 @@ class Tiler_Conv2D():
             if BN == 0:
                 constraint_all -= constr_bn
             solver.Add(constraint_all <= 32 * self.L2_buffer_size * 8)
-            # objective              
+            # objective
             obj_expr = solver.IntVar(0, max_obj_value, "obj_expr")
-            # objective function: 
+            # objective function:
             # 1. constraints for pulp-nn perfromance optimization
             # 2. constraints to have all tiles of same dimension
             solver.Add(obj_expr == (constraint_all +  32 * 2 * 10000000 * (constraint_all_L1 < self.buffer_size*8*32)
@@ -735,7 +739,7 @@ class Tiler_Conv2D():
                                buffer_size,
                                full_computation=True,
                                multiple_buffering_factor=2,
-                               name='conv'): 
+                               name='conv'):
         ###############################################
         ##### PARAMETERS INITIALIZATION ###############
         ###############################################
@@ -778,9 +782,9 @@ class Tiler_Conv2D():
         else:
             weight_dim = self.BitW * int(n_out/self.number_of_clusters) * fs1 * fs2
         if DW == 0:
-            im2col_dim = 8 * 2 * 8 * fs1 * fs2 * n_in 
+            im2col_dim = 8 * 2 * 8 * fs1 * fs2 * n_in
         else:
-            im2col_dim = 8 * 8 * (fs1 * (h_in + padding_top + padding_bottom) + fs1) * int( 8 / min(self.BitIn, self.BitOut, self.BitW)) 
+            im2col_dim = 8 * 8 * (fs1 * (h_in + padding_top + padding_bottom) + fs1) * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
             weight_full_prec_dim = 8 * 8 * fs1 * fs2 * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
             if self.BitW==8:
                  weight_full_prec_dim = 0
@@ -793,8 +797,8 @@ class Tiler_Conv2D():
         if DW == 1:
             buffer_total+= weight_full_prec_dim
         if BN == 0:
-            buffer_total -= bn_dim   
-        # return immediatly if the memory fits the L1  
+            buffer_total -= bn_dim
+        # return immediatly if the memory fits the L1
         if buffer_total <= self.buffer_size * 8:
             if fs2 == h_in and h_out == 1:
                 h_in = h_in - padding_bottom
@@ -876,7 +880,7 @@ class Tiler_Conv2D():
             if n_in >=self.number_of_clusters:
                 solver.Add(tile_n_out <= int(n_out/self.number_of_clusters))
         # constraint for future mixed
-        if DW == 1: 
+        if DW == 1:
             solver.Add(tile_n_in % (int(8/min(self.BitIn, self.BitOut, self.BitW)))==0)
         solver.Add(tile_n_out % (int(8/min(self.BitIn, self.BitOut, self.BitW)))==0)
         ###############################################
@@ -902,7 +906,7 @@ class Tiler_Conv2D():
         if 'MatMul' in name or 'Gemm' in name or self.backend == 'Occamy':
             constr_im2col = 0
         constr_bn = ds_bn_scale * tile_n_out * 2 * db
-        constraint_all = constr_in + constr_out + constr_weight + constr_bn + constr_im2col + 20 
+        constraint_all = constr_in + constr_out + constr_weight + constr_bn + constr_im2col + 20
         if DW == 1:
             constraint_all += constr_weight_full_prec
         if BN == 0:
@@ -947,10 +951,10 @@ class Tiler_Conv2D():
                             + 32 * 100 * (((h_out-zero_variable) % (tile_h_out+1)) % 4)
         else:
             ####### Geometrical Shape of Tiles ############
-            heuristics += 64 * 10000 * (((((h_out-zero_variable - 1) % tile_h_out)) % 8) > 4) 
+            heuristics += 64 * 10000 * (((((h_out-zero_variable - 1) % tile_h_out)) % 8) > 4)
             heuristics += 64 * 10000 * (((tile_h_out - 1) % 8) > 4) \
                         + 64 * 10000 * ((tile_n_out - 1) % 8) \
-                        + 64 * 10000 * tile_n_out 
+                        + 64 * 10000 * tile_n_out
             # ####### Total Dimension of Tile ###############
             heuristics += constraint_all
             ####### Geometrical Shape of Border Tiles #####

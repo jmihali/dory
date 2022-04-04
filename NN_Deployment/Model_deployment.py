@@ -88,7 +88,7 @@ class Model_deployment():
                 layer = 'Conv'
                 if 'Conv' in nodes_to_deploy.name:
                     h_dimension = nodes_to_deploy.get_parameter('kernel_shape')[0] + nodes_to_deploy.get_parameter('input_dim')[0] + nodes_to_deploy.get_parameter('output_dim')[0]
-                    if h_dimension == 3 and 'mixed' not in optional:
+                    if h_dimension == 3:
                         layer = 'Conv1D'
                         optional = '1D_Conv'
             elif('Pool' in nodes_to_deploy.name):
@@ -137,7 +137,8 @@ class Model_deployment():
                               sdk = sdk,
                               backend = backend,
                               dma_parallelization = dma_parallelization,
-                              number_of_clusters = number_of_clusters)
+                              number_of_clusters = number_of_clusters,
+                              dilation=nodes_to_deploy.dilations if 'Conv1D' in layer else 1)
             str_l = 'ch_in' + str(nodes_to_deploy.ch_in) + 'ch_out' + str(nodes_to_deploy.ch_out) + 'groups' + str(
                 nodes_to_deploy.group) + 'dim_image' + str(nodes_to_deploy.input_dim[1],) + 'pads' + ''.join([str(x) for x in nodes_to_deploy.pads]) +'stride' + str(nodes_to_deploy.strides) + 'kernel'+ str(
                 nodes_to_deploy.kernel_shape[0]) + str(nodes_to_deploy.kernel_shape[1]) + 'BitIn' + str(BitIn) + 'BitOut' + str(BitOut) + 'BitW' + str(BitW)
@@ -183,16 +184,7 @@ class Model_deployment():
                 h_b = 1
             else:
                 h_b = 0
-            if('Conv1D' in layer):
-                d = dict(X=0, Y=0, W=0,
-                        relu=relu, BN=BN,
-                        type_data = type_data,
-                        dilation=nodes_to_deploy.dilations,
-                        has_bias=h_b,
-                        out_mul=nodes_to_deploy.outmul,
-                        out_shift=nodes_to_deploy.outshift,
-                        name=name_layer)
-            elif('Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
+            if('Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
                 d = dict(X=0, Y=0, W=0,
                         relu=relu, BN=BN, DW=DW,
                         type_data = type_data,

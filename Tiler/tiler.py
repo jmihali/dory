@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2018-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -46,7 +46,7 @@ import sys
 
 class Tiler():
     # Class to generate the Tiling of the layer.
-    def __init__(self, module, out_ch, filter_size, stride, padding, groups, x_shape, L1_buffer, L2_buffer, platform, chip, test_location, BitIn, BitW, BitOut, BitActivation, optional_type, sdk, backend, dma_parallelization, number_of_clusters):
+    def __init__(self, module, out_ch, filter_size, stride, padding, groups, x_shape, L1_buffer, L2_buffer, platform, chip, test_location, BitIn, BitW, BitOut, BitActivation, optional_type, sdk, backend, dma_parallelization, number_of_clusters, dilation):
         self.module = module
         self.out_ch = out_ch
         self.filter_size = filter_size
@@ -68,14 +68,13 @@ class Tiler():
         self.backend = backend
         self.dma_parallelization = dma_parallelization
         self.number_of_clusters = number_of_clusters
+        self.dilation = dilation
 
     def get_tiling(self, **kwargs):
         # This function is used to create the tiling of either a convolutional layer or a fully connected or a pooling layer.
         # The relu is included automatically in conv/FC.
         try:
-            if 'Conv1D' in self.module:
-                return Tiler_Conv1D(self).get_tiling(**kwargs)
-            elif 'Conv' in self.module:
+            if 'Conv' in self.module or 'Conv1D' in self.module:
                 return Tiler_Conv2D(self).get_tiling(**kwargs)
             elif 'Pool' in self.module:
                 return Tiler_Pool2D(self).get_tiling(**kwargs)
