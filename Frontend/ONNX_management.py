@@ -154,16 +154,18 @@ class ONNX_management():
             bias_name = [input_i for input_i in node_iterating.input if 'bias' in input_i][0]
         except:
             bias_name = 'NotFound'
-        flag = '2D'
+        new_parameters['op_dim'] = '2D'
         if len(new_parameters['pads']) == 2:
-            flag = '1D'
-            new_parameters['pads'] =[0, new_parameters['pads'][0], 0, new_parameters['pads'][1]]
+            new_parameters['op_dim'] = '1D'
+            if 'Conv' not in new_parameters['name']:
+                new_parameters['pads'] =[0, new_parameters['pads'][0], 0, new_parameters['pads'][1]]
         if 'Conv' in new_parameters['name']:
             if new_parameters['group'] > 1:
+                assert '2D' in new_parameters['op_dim'], 'DW Conv1D not supported'
                 new_parameters['name'] = new_parameters['name'] + 'DW'
         for weight in model.graph.initializer:
             if weight.name == weight_name:
-                if '1D' in flag:
+                if '1D' in new_parameters['op_dim']:
                     new_parameters['weights'] = np.transpose(numpy_helper.to_array(weight), (0, 2, 1))
                 elif 'Conv' in new_parameters['name']:
                     new_parameters['weights'] = np.transpose(numpy_helper.to_array(weight), (0, 2, 3, 1))

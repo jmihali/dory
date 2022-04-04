@@ -89,7 +89,11 @@ class Model_deployment_MCU(Model_deployment):
                 if 'DW' in PULP_Nodes_Graph[i].name:
                     layer_mixed_list.append(f'xpulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
                 elif 'Conv' in PULP_Nodes_Graph[i].name:
-                    layer_mixed_list.append(f'xpulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
+                    assert PULP_Nodes_Graph[i].op_dim in ['1D', '2D'], f'{PULP_Nodes_Graph[i].op_dim} Convolutions not supported'
+                    if PULP_Nodes_Graph[i].op_dim == '2D':
+                        layer_mixed_list.append(f'xpulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
+                    elif PULP_Nodes_Graph[i].op_dim == '1D':
+                        layer_mixed_list.append(f'xpulp_nn_conv1d_u{BitIn}_u{BitOut}_i{BitW}.c')
                 if ('Conv' in PULP_Nodes_Graph[i].name or 'Gemm' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name) and BitOut!=32:
                     layer_mixed_list.append(f'xpulp_nn_matmul_u{BitIn}_u{BitOut}_i{BitW}.c')
                 if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
@@ -170,6 +174,8 @@ class Model_deployment_MCU(Model_deployment):
             os.system('cp ../Backend_Kernels/pulp-nn-mixed/XpulpNN/' + version +'/include/*  ./application/DORY_network/inc/')
             for layer in layer_mixed_list:
                 if layer.split('_')[2] == 'conv':
+                    os.system('cp ../Backend_Kernels/pulp-nn-mixed/XpulpNN/' + version +'/src/Convolution/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'conv1d':
                     os.system('cp ../Backend_Kernels/pulp-nn-mixed/XpulpNN/' + version +'/src/Convolution/' + layer + ' ./application/DORY_network/src/')
                 elif layer.split('_')[2] == 'depthwise':
                     os.system('cp ../Backend_Kernels/pulp-nn-mixed/XpulpNN/' + version +'/src/Depthwise/' + layer + ' ./application/DORY_network/src/')
