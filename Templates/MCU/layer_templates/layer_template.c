@@ -457,8 +457,8 @@ void ${func_name}(
       out_mult, out_shift,
       x_tile_size_w_exec, x_tile_size_nif_exec,
       y_tile_size_w, y_tile_size_nof,
-      ${fs1},
-      p_l, p_r, ${stride},
+      ${fs2},
+      p_l, p_r, ${stride}, ${dilation},
       ${FLAG_RELU}, ${FLAG_BATCHNORM}
     % else:
       x, im2col,
