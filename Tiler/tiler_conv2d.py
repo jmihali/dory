@@ -509,8 +509,8 @@ class Tiler_Conv2D():
                 n_out_temp = self.out_ch
                 h_in_temp = self.x_shape[-2]
                 w_in_temp = self.x_shape[-1]
-                h_out_temp = int(np.floor((h_in_temp - (fs1 - 1) + p_top + p_bottom + (s - 1)) / s))
-                w_out_temp = int(np.floor((w_in_temp - (fs2 - 1) + p_left + p_right + (s - 1)) / s))
+                h_out_temp = int(np.floor((h_in_temp - self.dilation*(fs1 - 1) + p_top + p_bottom + (s - 1)) / s))
+                w_out_temp = int(np.floor((w_in_temp - self.dilation*(fs2 - 1) + p_left + p_right + (s - 1)) / s))
                 out_dim1 = n_out_temp * h_out_temp * w_out_temp
             if factor_h_in > 1:
                 in_dim1 = in_dim1*2
