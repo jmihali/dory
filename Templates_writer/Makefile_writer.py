@@ -4,7 +4,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -25,6 +25,7 @@ import numpy as np
 import sys
 import os
 import re
+import json
 
 def print_template_Makefile(file_list_w, platform, sdk, backend):
     # Generate the Makefile, including all files to upload on the hyperflash
@@ -42,3 +43,7 @@ def print_template_Makefile(file_list_w, platform, sdk, backend):
         save_string = './application/CMakeLists.txt'
     with open(save_string, "w") as f:
         f.write(s)
+
+    # dump to json
+    with open('./application/makefile_template_data.json', 'w') as f:
+        json.dump(tk, f, indent=4)
