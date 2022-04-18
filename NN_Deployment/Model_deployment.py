@@ -289,73 +289,103 @@ class Model_deployment():
                                         load_dir,
                                         number_of_deployed_layers,
                                         check_layer,
-                                        weights_to_write):
+                                        weights_to_write,
+                                        test_inputs):
         ######################################################################################
         ###### SECTION 4: GENERATE CHECKSUM BY USING WEIGHT AND OUT_LAYER{i}.TXT FILES  ######
         ######################################################################################
-        try:
-            x_in = pd.read_csv(os.path.join(load_dir, 'input.txt'))
-            x_in = x_in.values[:, 0].astype(int)
-        except:
-            print(f"========= WARNING ==========\nInput file {os.path.join(load_dir, 'input.txt')} not found; generating random inputs!")
-            x_in = torch.Tensor(1, PULP_Nodes_Graph[0].group, PULP_Nodes_Graph[0].ch_in, PULP_Nodes_Graph[0].input_dim[0], PULP_Nodes_Graph[0].input_dim[1]).uniform_(0, (2**(9)))
-            x_in[x_in > (2**8 - 1)] = 0
-            x_in = torch.round(x_in)
-            x_in = x_in.flatten().numpy().astype(int)
-        for i, _ in enumerate(x_in):
-            x_in[i] = np.uint8(x_in[i])
-
         BitIn = PULP_Nodes_Graph[0].input_activation_bits
         BitOut = PULP_Nodes_Graph[0].out_activation_bits
-        Input_compressed = []
-        z = 0
-        import copy
-        Loop_over = copy.deepcopy(x_in)
-        for _, i_x in enumerate(Loop_over):
-            if (z % int(8 / BitIn)) == 0:
-                Input_compressed.append(int(i_x.item()))
-            else:
-                Input_compressed[-1] += int(i_x.item()) << (BitIn * (z % int(8 / BitIn)))
-            z += 1
-        PULP_Nodes_Graph[0].check_sum_in = sum(Input_compressed)
-
-        f_w = 0
-        for f, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
-            X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt'))
-            X_in = X_in.values[:, 0].astype(int)
-            if f == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
-                class_out = int(np.where(X_in == np.max(X_in))[0][0])
-            for i, _ in enumerate(X_in):
-                X_in[i] = np.uint8(X_in[i])
-            BitIn = nodes_to_deploy.input_activation_bits
-            BitOut = nodes_to_deploy.out_activation_bits
-
+        for k in range(test_inputs):
+            try:
+                x_in = pd.read_csv(os.path.join(load_dir, 'input.txt' if test_inputs==1 else f'input_{k}.txt'))
+                x_in = x_in.values[:, 0].astype(int)
+            except:
+                print(f"========= WARNING ==========\nInput file {os.path.join(load_dir, 'input.txt' if test_inputs==1 else f'input_{k}.txt')} not found; generating random inputs!")
+                x_in = torch.Tensor(1, PULP_Nodes_Graph[0].group, PULP_Nodes_Graph[0].ch_in, PULP_Nodes_Graph[0].input_dim[0], PULP_Nodes_Graph[0].input_dim[1]).uniform_(0, (2**(9)))
+                x_in[x_in > (2**8 - 1)] = 0
+                x_in = torch.round(x_in)
+                x_in = x_in.flatten().numpy().astype(int)
+            for i, _ in enumerate(x_in):
+                x_in[i] = np.uint8(x_in[i])
             Input_compressed = []
             z = 0
             import copy
-            Loop_over = copy.deepcopy(X_in)
-            if f != len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
-                for _, i_x in enumerate(Loop_over):
-                    if (z % int(8 / BitOut)) == 0:
-                        Input_compressed.append(int(i_x.item()))
-                    else:
-                        Input_compressed[-1] += int(i_x.item()) << (BitOut * (z % int(8 / BitOut)))
-                    z += 1
-            if check_layer == f:
-                act_compare = Input_compressed
-            PULP_Nodes_Graph[f].check_sum_out = sum(Input_compressed)
-            if f == len(PULP_Nodes_Graph) - 1:
-                if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
-                    ww = np.asarray(nodes_to_deploy.weights_raw).reshape(nodes_to_deploy.ch_out,nodes_to_deploy.ch_in).astype(np.int8).astype(int)
-                X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f-1}.txt'))
-                X_out = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt'))
-                X_in = X_in.values[:, 0].astype(int).reshape(X_in.shape[0],1)
+            Loop_over = copy.deepcopy(x_in)
+            for _, i_x in enumerate(Loop_over):
+                if (z % int(8 / BitIn)) == 0:
+                    Input_compressed.append(int(i_x.item()))
+                else:
+                    Input_compressed[-1] += int(i_x.item()) << (BitIn * (z % int(8 / BitIn)))
+                z += 1
+            if test_inputs==1:
+                PULP_Nodes_Graph[0].check_sum_in = int(sum(Input_compressed))
+            else:
                 try:
-                    PULP_Nodes_Graph[f].check_sum_out = sum(sum(np.matmul(ww,X_in)))
-                except:
-                    PULP_Nodes_Graph[f].check_sum_out = 0
-            if f != len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
-                PULP_Nodes_Graph[f + 1].check_sum_in = sum(Input_compressed)
+                    PULP_Nodes_Graph[0].check_sum_in.append(int(sum(Input_compressed)))
+                except AttributeError:
+                    PULP_Nodes_Graph[0].check_sum_in = []
+                    PULP_Nodes_Graph[0].check_sum_in.append(int(sum(Input_compressed)))
+
+        f_w = 0
+        for f, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
+            BitIn = nodes_to_deploy.input_activation_bits
+            BitOut = nodes_to_deploy.out_activation_bits
+
+            for k in range(test_inputs):
+                X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt' if test_inputs==1 else f'out_{k}_layer{f}.txt'))
+                X_in = X_in.values[:, 0].astype(int)
+                if f == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
+                    class_out = int(np.where(X_in == np.max(X_in))[0][0])
+                for i, _ in enumerate(X_in):
+                    X_in[i] = np.uint8(X_in[i])
+                Input_compressed = []
+                z = 0
+                import copy
+                Loop_over = copy.deepcopy(X_in)
+                if f != len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
+                    for _, i_x in enumerate(Loop_over):
+                        if (z % int(8 / BitOut)) == 0:
+                            Input_compressed.append(int(i_x.item()))
+                        else:
+                            Input_compressed[-1] += int(i_x.item()) << (BitOut * (z % int(8 / BitOut)))
+                        z += 1
+                if check_layer == f:
+                    act_compare = Input_compressed
+                if test_inputs==1:
+                    PULP_Nodes_Graph[f].check_sum_out = sum(Input_compressed)
+                else:
+                    try:
+                        PULP_Nodes_Graph[f].check_sum_out.append(int(sum(Input_compressed)))
+                    except AttributeError:
+                        PULP_Nodes_Graph[f].check_sum_out = []
+                        PULP_Nodes_Graph[f].check_sum_out.append(int(sum(Input_compressed)))
+                if f == len(PULP_Nodes_Graph) - 1:
+                    if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
+                        ww = np.asarray(nodes_to_deploy.weights_raw).reshape(nodes_to_deploy.ch_out,nodes_to_deploy.ch_in).astype(np.int8).astype(int)
+                    X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f-1}.txt' if test_inputs==1 else f'out_{k}_layer{f-1}.txt'))
+                    X_out = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt' if test_inputs==1 else f'out_{k}_layer{f}.txt'))
+                    X_in = X_in.values[:, 0].astype(int).reshape(X_in.shape[0],1)
+                    if test_inputs==1:
+                        try:
+                            PULP_Nodes_Graph[f].check_sum_out = int(sum(sum(np.matmul(ww,X_in))))
+                        except:
+                            PULP_Nodes_Graph[f].check_sum_out = 0
+                    else:
+                        try:
+                            PULP_Nodes_Graph[f].check_sum_out.append(int(sum(sum(np.matmul(ww,X_in)))))
+                        except AttributeError:
+                            PULP_Nodes_Graph[f].check_sum_out = []
+                            PULP_Nodes_Graph[f].check_sum_out.append(int(sum(sum(np.matmul(ww,X_in)))))
+                if f != len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
+                    if test_inputs==1:
+                        PULP_Nodes_Graph[f + 1].check_sum_in = sum(Input_compressed)
+                    else:
+                        try:
+                            PULP_Nodes_Graph[f + 1].check_sum_in.append(int(sum(Input_compressed)))
+                        except AttributeError:
+                            PULP_Nodes_Graph[f + 1].check_sum_in = []
+                            PULP_Nodes_Graph[f + 1].check_sum_in.append(int(sum(Input_compressed)))
             if 'Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
                 PULP_Nodes_Graph[f].check_sum_w = int(sum(weights_to_write[f_w]))
                 f_w += 1
@@ -381,7 +411,8 @@ class Model_deployment():
                             dma_parallelization='8-cores',
                             number_of_clusters = 1,
                             optional = 'auto',
-                            type_data = 'char'):
+                            type_data = 'char',
+                            test_inputs = 1):
         # Function used to create all the files for the application
         # copy backend is used to copy all the files of the backend
         self.copy_backend(BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization, optional)
@@ -428,7 +459,8 @@ class Model_deployment():
                 load_dir,
                 number_of_deployed_layers,
                 check_layer,
-                weights_to_write)
+                weights_to_write,
+                test_inputs)
         else:
             class_out = 0
         if check_layer == 100:
