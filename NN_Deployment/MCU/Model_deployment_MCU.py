@@ -33,8 +33,8 @@ class Model_deployment_MCU(Model_deployment):
     Used to manage the PULP graph. By now, supported Convolutions, Pooling, Linear Layers and Relu.
     """
 
-    def __init__(self, platform, chip):
-        Model_deployment.__init__(self, platform, chip)
+    def __init__(self, platform, chip, test_inputs):
+        Model_deployment.__init__(self, platform, chip, test_inputs)
 
 
     def copy_backend(self, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization, optional):
@@ -297,34 +297,36 @@ class Model_deployment_MCU(Model_deployment):
                 with open(save_s, 'wb') as f:
                     for l in weights.astype('uint8').flatten():
                         f.write(bytes((l,)))
-        try:
-            x_in = pd.read_csv(os.path.join(load_dir, 'input.txt'))
-            x_in = x_in.values[:, 0].astype(int)
-        except:
-            print(f"========= WARNING ==========\nInput file {os.path.join(load_dir, 'input.txt')} not found; generating random inputs!")
-            x_in = torch.Tensor(1, PULP_Nodes_Graph[0].group, PULP_Nodes_Graph[0].ch_in, PULP_Nodes_Graph[0].input_dim[0], PULP_Nodes_Graph[0].input_dim[1]).uniform_(0, (2**(9)))
-            x_in[x_in > (2**8 - 1)] = 0
-            x_in = torch.round(x_in)
-            x_in = x_in.flatten().numpy().astype(int)
-        for i, _ in enumerate(x_in):
-            x_in[i] = np.uint8(x_in[i])
 
-        if PULP_Nodes_Graph[0].weight_bits == 2:
-            temp = []
-            z = 0
-            for i_x, _ in enumerate(x_in):
-                if (z % 4) == 0:
-                    temp.append(x_in[i_x]& 0x03)
-                else:
-                    temp[-1] += (x_in[i_x]& 0x03) << 2 * (z % 4)
-                z += 1
-            x_in = np.array(temp)
+        for t in range(self.test_inputs):
+            try:
+                x_in = pd.read_csv(os.path.join(load_dir, 'input.txt' if self.test_inputs==1 else f'input_{t}.txt'))
+                x_in = x_in.values[:, 0].astype(int)
+            except:
+                print(f"========= WARNING ==========\nInput file {os.path.join(load_dir, 'input.txt' if self.test_inputs==1 else f'input_{t}.txt')} not found; generating random inputs!")
+                x_in = torch.Tensor(1, PULP_Nodes_Graph[0].group, PULP_Nodes_Graph[0].ch_in, PULP_Nodes_Graph[0].input_dim[0], PULP_Nodes_Graph[0].input_dim[1]).uniform_(0, (2**(9)))
+                x_in[x_in > (2**8 - 1)] = 0
+                x_in = torch.round(x_in)
+                x_in = x_in.flatten().numpy().astype(int)
+            for i, _ in enumerate(x_in):
+                x_in[i] = np.uint8(x_in[i])
 
-        string_layer = "inputs.hex"
-        save_s = './application/DORY_network/' + string_layer
+            if PULP_Nodes_Graph[0].weight_bits == 2:
+                temp = []
+                z = 0
+                for i_x, _ in enumerate(x_in):
+                    if (z % 4) == 0:
+                        temp.append(x_in[i_x]& 0x03)
+                    else:
+                        temp[-1] += (x_in[i_x]& 0x03) << 2 * (z % 4)
+                    z += 1
+                x_in = np.array(temp)
 
-        with open(save_s, 'wb') as f:
-            for i in x_in.astype('uint8').flatten():
-                f.write(bytes((i,)))
+            string_layer = "inputs.hex" if self.test_inputs==1 else f"inputs_{t}.hex"
+            save_s = './application/DORY_network/' + string_layer
+
+            with open(save_s, 'wb') as f:
+                for i in x_in.astype('uint8').flatten():
+                    f.write(bytes((i,)))
 
         return PULP_Nodes_Graph, file_list_w, weights_to_write

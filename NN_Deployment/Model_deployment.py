@@ -34,9 +34,11 @@ class Model_deployment():
     Used to manage the PULP graph. By now, supported Convolutions, Pooling, Linear Layers and Relu.
     """
 
-    def __init__(self, platform, chip):
+    def __init__(self, platform, chip, test_inputs=1):
         self.platform = platform
         self.chip = chip
+        assert test_inputs>0, f'Number of test inputs must be > 0, got value {test_inputs}'
+        self.test_inputs = test_inputs
 
     def copy_files(self, optional, layer_mixed_list,version, sdk, backend, dma_parallelization):
         print("The function copy_files should be implemented in the target Backend. Exiting ...")
@@ -289,19 +291,18 @@ class Model_deployment():
                                         load_dir,
                                         number_of_deployed_layers,
                                         check_layer,
-                                        weights_to_write,
-                                        test_inputs):
+                                        weights_to_write):
         ######################################################################################
         ###### SECTION 4: GENERATE CHECKSUM BY USING WEIGHT AND OUT_LAYER{i}.TXT FILES  ######
         ######################################################################################
         BitIn = PULP_Nodes_Graph[0].input_activation_bits
         BitOut = PULP_Nodes_Graph[0].out_activation_bits
-        for k in range(test_inputs):
+        for k in range(self.test_inputs):
             try:
-                x_in = pd.read_csv(os.path.join(load_dir, 'input.txt' if test_inputs==1 else f'input_{k}.txt'))
+                x_in = pd.read_csv(os.path.join(load_dir, 'input.txt' if self.test_inputs==1 else f'input_{k}.txt'))
                 x_in = x_in.values[:, 0].astype(int)
             except:
-                print(f"========= WARNING ==========\nInput file {os.path.join(load_dir, 'input.txt' if test_inputs==1 else f'input_{k}.txt')} not found; generating random inputs!")
+                print(f"========= WARNING ==========\nInput file {os.path.join(load_dir, 'input.txt' if self.test_inputs==1 else f'input_{k}.txt')} not found; generating random inputs!")
                 x_in = torch.Tensor(1, PULP_Nodes_Graph[0].group, PULP_Nodes_Graph[0].ch_in, PULP_Nodes_Graph[0].input_dim[0], PULP_Nodes_Graph[0].input_dim[1]).uniform_(0, (2**(9)))
                 x_in[x_in > (2**8 - 1)] = 0
                 x_in = torch.round(x_in)
@@ -318,7 +319,7 @@ class Model_deployment():
                 else:
                     Input_compressed[-1] += int(i_x.item()) << (BitIn * (z % int(8 / BitIn)))
                 z += 1
-            if test_inputs==1:
+            if self.test_inputs==1:
                 PULP_Nodes_Graph[0].check_sum_in = int(sum(Input_compressed))
             else:
                 try:
@@ -332,8 +333,8 @@ class Model_deployment():
             BitIn = nodes_to_deploy.input_activation_bits
             BitOut = nodes_to_deploy.out_activation_bits
 
-            for k in range(test_inputs):
-                X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt' if test_inputs==1 else f'out_{k}_layer{f}.txt'))
+            for k in range(self.test_inputs):
+                X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt' if self.test_inputs==1 else f'out_{k}_layer{f}.txt'))
                 X_in = X_in.values[:, 0].astype(int)
                 if f == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
                     class_out = int(np.where(X_in == np.max(X_in))[0][0])
@@ -352,7 +353,7 @@ class Model_deployment():
                         z += 1
                 if check_layer == f:
                     act_compare = Input_compressed
-                if test_inputs==1:
+                if self.test_inputs==1:
                     PULP_Nodes_Graph[f].check_sum_out = sum(Input_compressed)
                 else:
                     try:
@@ -363,10 +364,10 @@ class Model_deployment():
                 if f == len(PULP_Nodes_Graph) - 1:
                     if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
                         ww = np.asarray(nodes_to_deploy.weights_raw).reshape(nodes_to_deploy.ch_out,nodes_to_deploy.ch_in).astype(np.int8).astype(int)
-                    X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f-1}.txt' if test_inputs==1 else f'out_{k}_layer{f-1}.txt'))
-                    X_out = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt' if test_inputs==1 else f'out_{k}_layer{f}.txt'))
+                    X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f-1}.txt' if self.test_inputs==1 else f'out_{k}_layer{f-1}.txt'))
+                    X_out = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt' if self.test_inputs==1 else f'out_{k}_layer{f}.txt'))
                     X_in = X_in.values[:, 0].astype(int).reshape(X_in.shape[0],1)
-                    if test_inputs==1:
+                    if self.test_inputs==1:
                         try:
                             PULP_Nodes_Graph[f].check_sum_out = int(sum(sum(np.matmul(ww,X_in))))
                         except:
@@ -378,7 +379,7 @@ class Model_deployment():
                             PULP_Nodes_Graph[f].check_sum_out = []
                             PULP_Nodes_Graph[f].check_sum_out.append(int(sum(sum(np.matmul(ww,X_in)))))
                 if f != len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
-                    if test_inputs==1:
+                    if self.test_inputs==1:
                         PULP_Nodes_Graph[f + 1].check_sum_in = sum(Input_compressed)
                     else:
                         try:
@@ -411,8 +412,7 @@ class Model_deployment():
                             dma_parallelization='8-cores',
                             number_of_clusters = 1,
                             optional = 'auto',
-                            type_data = 'char',
-                            test_inputs = 1):
+                            type_data = 'char'):
         # Function used to create all the files for the application
         # copy backend is used to copy all the files of the backend
         self.copy_backend(BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization, optional)
@@ -459,8 +459,7 @@ class Model_deployment():
                 load_dir,
                 number_of_deployed_layers,
                 check_layer,
-                weights_to_write,
-                test_inputs)
+                weights_to_write)
         else:
             class_out = 0
         if check_layer == 100:
