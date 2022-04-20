@@ -491,6 +491,7 @@ class Model_deployment():
             platform=self.platform,
             sdk = sdk,
             backend = backend,
-            dma_parallelization = dma_parallelization)
+            dma_parallelization = dma_parallelization,
+            test_inputs = self.test_inputs)
         # create the Makefile for the application
-        Makefile_writer.print_template_Makefile(weights_files_list, self.platform, sdk, backend)
+        Makefile_writer.print_template_Makefile(weights_files_list, self.platform, sdk, backend, self.test_inputs)

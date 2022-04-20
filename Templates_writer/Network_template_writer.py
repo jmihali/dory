@@ -51,7 +51,8 @@ def print_template_network(
     platform = 'GAP8',
     sdk = 'gap_sdk',
     backend = 'MCU',
-    dma_parallelization = '8-cores'
+    dma_parallelization = '8-cores',
+    test_inputs = 1
 ):
     # Generate the Network management c file.
     tk = OrderedDict([])
@@ -133,6 +134,7 @@ def print_template_network(
         except KeyError:
             pass
     tk['PULP_Nodes_Graph'] = tmp
+    tk['test_inputs'] = test_inputs
     # dump to json
     with open('./application/network_template_data.json', 'w') as f:
         json.dump(tk, f, indent=4)

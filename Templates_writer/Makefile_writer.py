@@ -27,7 +27,7 @@ import os
 import re
 import json
 
-def print_template_Makefile(file_list_w, platform, sdk, backend):
+def print_template_Makefile(file_list_w, platform, sdk, backend, test_inputs):
     # Generate the Makefile, including all files to upload on the hyperflash
     tk = OrderedDict([])
     tk['build_layers'] = os.listdir('./application/DORY_network/src/')
@@ -44,6 +44,7 @@ def print_template_Makefile(file_list_w, platform, sdk, backend):
     with open(save_string, "w") as f:
         f.write(s)
 
+    tk['test_inputs'] = test_inputs
     # dump to json
     with open('./application/makefile_template_data.json', 'w') as f:
         json.dump(tk, f, indent=4)
