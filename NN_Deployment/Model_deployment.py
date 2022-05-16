@@ -28,17 +28,21 @@ import pandas as pd
 from mako.template import Template
 from collections import OrderedDict
 import logging
+from random import randint
 
 class Model_deployment():
     """
     Used to manage the PULP graph. By now, supported Convolutions, Pooling, Linear Layers and Relu.
     """
 
-    def __init__(self, platform, chip, test_inputs=1):
+    def __init__(self, platform, chip, test_inputs=1, ternary_compression=False):
         self.platform = platform
         self.chip = chip
         assert test_inputs>0, f'Number of test inputs must be > 0, got value {test_inputs}'
         self.test_inputs = test_inputs
+        self.ternary_compression = ternary_compression
+        if self.ternary_compression:
+            self._prepare_encoding_map()
 
     def copy_files(self, optional, layer_mixed_list,version, sdk, backend, dma_parallelization):
         print("The function copy_files should be implemented in the target Backend. Exiting ...")
@@ -51,6 +55,23 @@ class Model_deployment():
         print("The function create_weights_files should be implemented in the target Backend. Exiting ...")
         exit(0)
 
+    def _prepare_encoding_map(self):
+        enc_stimuli_file = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ternary_encodings/encoder_stimuli.txt'), 'r')
+        enc_stimuli = enc_stimuli_file.readlines()
+        enc_stimuli_file.close()
+
+        enc_exp_resp_file = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ternary_encodings/encoder_exp_responses.txt'), 'r')
+        enc_exp_resp = enc_exp_resp_file.readlines()
+        enc_exp_resp_file.close()
+
+        self._encoding_map = {key.strip(): value.strip() for key, value in zip(enc_stimuli, enc_exp_resp)}
+
+    def _encode(self, x):
+        x_bin = format(x, 'b').zfill(10)
+        res = self._encoding_map[x_bin]
+        if 'X' in res:
+            res = res.replace('X', str(randint(0, 1)))
+        return int(res, 2)
 
     def create_layers_tiling(self, PULP_Nodes_Graph,
                             number_of_deployed_layers,

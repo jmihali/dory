@@ -33,8 +33,8 @@ class Model_deployment_MCU(Model_deployment):
     Used to manage the PULP graph. By now, supported Convolutions, Pooling, Linear Layers and Relu.
     """
 
-    def __init__(self, platform, chip, test_inputs):
-        Model_deployment.__init__(self, platform, chip, test_inputs)
+    def __init__(self, platform, chip, test_inputs, ternary_compression):
+        Model_deployment.__init__(self, platform, chip, test_inputs, ternary_compression)
 
 
     def copy_backend(self, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization, optional):
@@ -203,6 +203,7 @@ class Model_deployment_MCU(Model_deployment):
         weights_to_write = []
         for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
             if 'weights' in nodes_to_deploy.__dict__:
+                assert self.ternary_compression and PULP_Nodes_Graph[i].weight_bits==2 or not self.ternary_compression, f'ternary_compression=True, but weight_bits={PULP_Nodes_Graph[i].weight_bits} at layer {i}'
                 if PULP_Nodes_Graph[i].weight_bits < 8 and 'DW' in nodes_to_deploy.name:
                     nodes_to_deploy.weights = nodes_to_deploy.weights.reshape(int(nodes_to_deploy.weights.shape[0]/2),2,nodes_to_deploy.weights.shape[1],nodes_to_deploy.weights.shape[2],nodes_to_deploy.weights.shape[3]).transpose(0,2,3,1,4).flatten().tolist()
                 else:
@@ -220,14 +221,27 @@ class Model_deployment_MCU(Model_deployment):
                         z += 1
                     nodes_to_deploy.weights = temp
                 elif PULP_Nodes_Graph[i].weight_bits == 2:
-                    temp = []
-                    z = 0
-                    for i_x, _ in enumerate(nodes_to_deploy.weights):
-                        if (z % 4) == 0:
-                            temp.append(nodes_to_deploy.weights[i_x]& 0x03)
-                        else:
-                            temp[-1] += (nodes_to_deploy.weights[i_x]& 0x03) << 2 * (z % 4)
-                        z += 1
+                    if not self.ternary_compression:
+                        temp = []
+                        z = 0
+                        for i_x, _ in enumerate(nodes_to_deploy.weights):
+                            if (z % 4) == 0:
+                                temp.append(nodes_to_deploy.weights[i_x]& 0x03)
+                            else:
+                                temp[-1] += (nodes_to_deploy.weights[i_x]& 0x03) << 2 * (z % 4)
+                            z += 1
+                    else:
+                        temp = []
+                        z = 0
+                        for i_x, _ in enumerate(nodes_to_deploy.weights):
+                            weight = nodes_to_deploy.weights[i_x] & 0x03
+                            assert weight in [0, 1, 3], f'ternary_compression=True, but non-ternary weight {weight:2b} found - needs to be 00, 01 or 11'
+                            if (z % 5) == 0:
+                                temp.append(weight)
+                            else:
+                                temp[-1] += weight << 2 * (z % 5)
+                            z += 1
+                        temp = [self._encode(val) for val in temp] # encode every 5 trits to 8 bits
                     nodes_to_deploy.weights = temp
                 weights = nodes_to_deploy.weights
             if 'bias' in nodes_to_deploy.__dict__:
@@ -312,14 +326,27 @@ class Model_deployment_MCU(Model_deployment):
                 x_in[i] = np.uint8(x_in[i])
 
             if PULP_Nodes_Graph[0].weight_bits == 2:
-                temp = []
-                z = 0
-                for i_x, _ in enumerate(x_in):
-                    if (z % 4) == 0:
-                        temp.append(x_in[i_x]& 0x03)
-                    else:
-                        temp[-1] += (x_in[i_x]& 0x03) << 2 * (z % 4)
-                    z += 1
+                if not self.ternary_compression:
+                    temp = []
+                    z = 0
+                    for i_x, _ in enumerate(x_in):
+                        if (z % 4) == 0:
+                            temp.append(x_in[i_x]& 0x03)
+                        else:
+                            temp[-1] += (x_in[i_x]& 0x03) << 2 * (z % 4)
+                        z += 1
+                else:
+                    temp = []
+                    z = 0
+                    for i_x, _ in enumerate(x_in):
+                        activation = x_in[i_x] & 0x03
+                        assert activation in [0, 1, 3], f'ternary_compression=True, but non-ternary input activation {activation:2b} found - needs to be 00, 01 or 10'
+                        if (z % 5) == 0:
+                            temp.append(activation)
+                        else:
+                            temp[-1] += (activation) << 2 * (z % 5)
+                        z += 1
+                    temp = [self._encode(val) for val in temp] # encode every 5 trits to 8 bits
                 x_in = np.array(temp)
 
             string_layer = "inputs.hex" if self.test_inputs==1 else f"inputs_{t}.hex"
