@@ -95,6 +95,12 @@ class Quantlab_onnx(ONNX_management):
                         for attribute in node_iterating.attribute:
                             if attribute.name == 'out_bits':
                                 pulp_node.add_parameter('out_activation_bits', attribute.i)
+                            elif attribute.name == 'min':
+                                if node_iterating.attribute[1].f < 0:
+                                    pulp_node.add_parameter('signed_output', True)
+                                else:
+                                    pulp_node.add_parameter('signed_output', False)
+
                     i+=1
                 if i >= blocks_to_search:
                     break
