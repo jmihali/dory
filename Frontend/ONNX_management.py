@@ -37,7 +37,7 @@ from onnx import shape_inference
 
 class ONNX_management():
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, network, platform, backend, rules, layers_accepted, layers_neglected, layers_to_node):
+    def __init__(self, network, platform, backend, rules, layers_accepted, layers_neglected, layers_to_node, signed_input=False):
         self.model = onnx.load(network)
         self.platform = platform
         self.layers_accepted = layers_accepted
@@ -46,11 +46,14 @@ class ONNX_management():
         self.backend = backend
         self.rules = rules
         self.PULP_Nodes_Graph = []
+        self.signed_input = signed_input
 
     def create_node(self, new_node, first_node, node_iterating, model):
         # Allocation of a Node, Convolution, Pooling or Linear
         new_parameters = {}
         new_parameters['input_index'] = [input_i for input_i in node_iterating.input if 'weight' not in input_i][0]
+        if first_node:
+            new_parameters['signed_input'] = self.signed_input
         if 'Add' == node_iterating.op_type:
             new_parameters['input_index_add'] = [input_i for input_i in node_iterating.input if 'weight' not in input_i][1]
             new_parameters['branch_in'] = 1

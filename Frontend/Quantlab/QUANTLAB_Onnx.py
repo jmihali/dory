@@ -37,7 +37,7 @@ from ONNX_management import ONNX_management
 class Quantlab_onnx(ONNX_management):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
 
-    def __init__(self, onnx, platform):
+    def __init__(self, onnx, platform, signed_input=False):
         layers_accepted = ['Conv', 'Pad', 'Mul', 'Add', 'Div', 'Constant', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'Cast', 'Clip', 'Floor', 'Flatten', 'Gemm', 'MatMul', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
         layers_neglected = ['Cast', 'Floor', 'Flatten', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
         layers_to_node = ['AveragePool', 'MaxPool', 'Conv', 'Gemm', 'MatMul', 'GlobalAveragePool', 'Add']
@@ -49,7 +49,7 @@ class Quantlab_onnx(ONNX_management):
         rules['Relu'] = 'Mul-Div-Floor-Clip'
         rules['BNRelu'] = 'Mul-Add-Div-Floor-Clip'
         rules['Pad'] = 'Pad'
-        ONNX_management.__init__(self, onnx, platform, backend, rules, layers_accepted, layers_neglected, layers_to_node)
+        ONNX_management.__init__(self, onnx, platform, backend, rules, layers_accepted, layers_neglected, layers_to_node, signed_input)
 
     def apply_rule(self, node, rule):
         pulp_node = pulp.node_element()
