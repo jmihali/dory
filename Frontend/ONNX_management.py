@@ -292,6 +292,9 @@ class ONNX_management():
                 for j, precedent_nodes in enumerate(self.PULP_Nodes_Graph[:i]):
                     if precedent_nodes.output_index == nodes.input_index:
                         nodes.add_parameter('input_activation_bits', precedent_nodes.get_parameter('out_activation_bits'))
+                        nodes.add_parameter('signed_input', precedent_nodes.get_parameter('signed_output'))
+                        if nodes.name in ['AveragePool', 'MaxPool', 'GlobalAveragePool']:
+                            nodes.add_parameter('signed_output', nodes.get_parameter('signed_input'))
                         if 'Add' in nodes.name:
                             nodes.add_parameter('out_activation_bits', nodes.get_parameter('input_activation_bits'))
             if i == (len(self.PULP_Nodes_Graph)-1):
