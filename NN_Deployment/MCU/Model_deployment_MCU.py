@@ -5,7 +5,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,7 +20,7 @@
 
 import sys
 sys.path.append('../')
-from Model_deployment import Model_deployment 
+from Model_deployment import Model_deployment
 import os
 from collections import OrderedDict
 from mako.template import Template
@@ -64,45 +64,60 @@ class Model_deployment_MCU(Model_deployment):
                 BitOut = PULP_Nodes_Graph[i].out_activation_bits
                 if ('Pool' not in PULP_Nodes_Graph[i].name) and ('Add' not in PULP_Nodes_Graph[i].name):
                     BitW = PULP_Nodes_Graph[i].weight_bits
+                    kernel_type_conv = ('i' if PULP_Nodes_Graph[i].signed_input else 'u')+str(BitIn)+'_'+('i' if PULP_Nodes_Graph[i].signed_output else 'u')+str(BitOut)+'_i'+str(BitW)
                 if 'DW' in PULP_Nodes_Graph[i].name:
-                    layer_mixed_list.append(f'pulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
+                    layer_mixed_list.append(f'pulp_nn_depthwise_{kernel_type_conv}.c')
                 elif 'Conv' in PULP_Nodes_Graph[i].name:
-                    layer_mixed_list.append(f'pulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
+                    layer_mixed_list.append(f'pulp_nn_conv_{kernel_type_conv}.c')
                 if ('Conv' in PULP_Nodes_Graph[i].name or 'Gemm' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name) and BitOut!=32:
-                    layer_mixed_list.append(f'pulp_nn_matmul_u{BitOut}_i{BitW}.c')
+                    kernel_type_matmul = ('i' if PULP_Nodes_Graph[i].signed_input else 'u')+'8_'+('i' if PULP_Nodes_Graph[i].signed_output else 'u')+str(BitOut)+'_i'+str(BitW)
+                    layer_mixed_list.append(f'pulp_nn_matmul_{kernel_type_matmul}.c')
                 if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
                     if BitOut==32:
-                        layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
+                        kernel_type_linear = ('i' if PULP_Nodes_Graph[i].signed_input else 'u')+str(BitIn)+'_i32_i'+str(BitW)
                     else:
-                        layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_u{BitOut}_i{BitW}.c')
+                        kernel_type_linear = kernel_type_conv
+                    layer_mixed_list.append(f'pulp_nn_linear_{kernel_type_linear}.c')
                 if 'AveragePool' in nodes_to_deploy.name:
-                    layer_mixed_list.append(f'pulp_nn_avgpool_u{BitIn}_u{BitOut}.c')
-            layer_mixed_list.append('pulp_nn_add_u8_u8.c')
+                    pool_type = ('i' if PULP_Nodes_Graph[i].signed_input else 'u')+str(BitIn)+'_'+('i' if PULP_Nodes_Graph[i].signed_output else 'u')+str(BitOut)
+                    layer_mixed_list.append(f'pulp_nn_avgpool_{pool_type}.c')
+            layer_mixed_list.append('pulp_nn_add_u8_u8.c') # TODO: Needs to be adapted to the new kernels from georgr/quant_add
             layer_mixed_list.append('pulp_nn_maxpool_u8.c')
             layer_mixed_list.append('pulp_nn_maxpool_u4.c')
             layer_mixed_list.append('pulp_nn_maxpool_u2.c')
+            layer_mixed_list.append('pulp_nn_maxpool_i8.c')
+            layer_mixed_list.append('pulp_nn_maxpool_i4.c')
+            layer_mixed_list.append('pulp_nn_maxpool_i2.c')
         if 'mixed-hw' in optional:
             for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
                 BitIn = PULP_Nodes_Graph[i].input_activation_bits
                 BitOut = PULP_Nodes_Graph[i].out_activation_bits
-                BitW = PULP_Nodes_Graph[i].weight_bits
+                if ('Pool' not in PULP_Nodes_Graph[i].name) and ('Add' not in PULP_Nodes_Graph[i].name):
+                    BitW = PULP_Nodes_Graph[i].weight_bits
+                    kernel_type_conv = ('i' if PULP_Nodes_Graph[i].signed_input else 'u')+str(BitIn)+'_'+('i' if PULP_Nodes_Graph[i].signed_output else 'u')+str(BitOut)+'_i'+str(BitW)
                 if 'DW' in PULP_Nodes_Graph[i].name:
-                    layer_mixed_list.append(f'xpulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
+                    layer_mixed_list.append(f'xpulp_nn_depthwise_{kernel_type_conv}.c')
                 elif 'Conv' in PULP_Nodes_Graph[i].name:
-                    layer_mixed_list.append(f'xpulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
+                    layer_mixed_list.append(f'xpulp_nn_conv_{kernel_type_conv}.c')
                 if ('Conv' in PULP_Nodes_Graph[i].name or 'Gemm' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name) and BitOut!=32:
-                    layer_mixed_list.append(f'xpulp_nn_matmul_u{BitIn}_u{BitOut}_i{BitW}.c')
+                    kernel_type_matmul = kernel_type_conv
+                    layer_mixed_list.append(f'xpulp_nn_matmul_{kernel_type_matmul}.c')
                 if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
                     if BitOut==32:
-                        layer_mixed_list.append(f'xpulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
+                        kernel_type_linear = ('i' if PULP_Nodes_Graph[i].signed_input else 'u')+str(BitIn)+'_i32_i'+str(BitW)
                     else:
-                        layer_mixed_list.append(f'xpulp_nn_linear_u{BitIn}_u{BitOut}_i{BitW}.c')
+                        kernel_type_linear = kernel_type_conv
+                    layer_mixed_list.append(f'xpulp_nn_linear_{kernel_type_linear}.c')
                 if 'AveragePool' in nodes_to_deploy.name:
-                    layer_mixed_list.append(f'xpulp_nn_avgpool_u{BitIn}_u{BitOut}.c')
-            layer_mixed_list.append('xpulp_nn_add_u8_u8.c')
+                    pool_type = ('i' if PULP_Nodes_Graph[i].signed_input else 'u')+str(BitIn)+'_'+('i' if PULP_Nodes_Graph[i].signed_output else 'u')+str(BitOut)
+                    layer_mixed_list.append(f'xpulp_nn_avgpool_{pool_type}.c')
+            layer_mixed_list.append('xpulp_nn_add_u8_u8.c') # TODO: Needs to be adapted to the new kernels from georgr/quant_add
             layer_mixed_list.append('xpulp_nn_maxpool_u8.c')
             layer_mixed_list.append('xpulp_nn_maxpool_u4.c')
             layer_mixed_list.append('xpulp_nn_maxpool_u2.c')
+            layer_mixed_list.append('xpulp_nn_maxpool_i8.c')
+            layer_mixed_list.append('xpulp_nn_maxpool_i4.c')
+            layer_mixed_list.append('xpulp_nn_maxpool_i2.c')
         version = str(BitActivation) + 'bit'
         self.copy_files(optional, layer_mixed_list, version, sdk, backend, dma_parallelization)
 
