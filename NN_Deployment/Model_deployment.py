@@ -5,7 +5,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -50,12 +50,12 @@ class Model_deployment():
         exit(0)
 
 
-    def create_layers_tiling(self, PULP_Nodes_Graph, 
-                            number_of_deployed_layers, 
+    def create_layers_tiling(self, PULP_Nodes_Graph,
+                            number_of_deployed_layers,
                             L1_dimension,
-                            l2_buffer_size, 
-                            BitActivation, 
-                            performance_single_layer, 
+                            l2_buffer_size,
+                            BitActivation,
+                            performance_single_layer,
                             sdk,
                             backend,
                             dma_parallelization,
@@ -69,7 +69,7 @@ class Model_deployment():
         layer_list = []
         stringa_features = []
         name_layer_list = []
-        name_layer_list_internal = []       
+        name_layer_list_internal = []
         MAC_total = 0
         Layers_L3_input_act = 0
         Layers_L3_output_act = 0
@@ -137,7 +137,9 @@ class Model_deployment():
                               sdk = sdk,
                               backend = backend,
                               dma_parallelization = dma_parallelization,
-                              number_of_clusters = number_of_clusters)
+                              number_of_clusters = number_of_clusters,
+                              signed_input = nodes_to_deploy.signed_input,
+                              signed_output = nodes_to_deploy.signed_output)
             str_l = 'ch_in' + str(nodes_to_deploy.ch_in) + 'ch_out' + str(nodes_to_deploy.ch_out) + 'groups' + str(
                 nodes_to_deploy.group) + 'dim_image' + str(nodes_to_deploy.input_dim[1],) + 'pads' + ''.join([str(x) for x in nodes_to_deploy.pads]) +'stride' + str(nodes_to_deploy.strides) + 'kernel'+ str(
                 nodes_to_deploy.kernel_shape[0]) + str(nodes_to_deploy.kernel_shape[1]) + 'BitIn' + str(BitIn) + 'BitOut' + str(BitOut) + 'BitW' + str(BitW)
@@ -277,7 +279,7 @@ class Model_deployment():
                     if(i > 0):
                         PULP_Nodes_Graph[i].weights_dimension_L3 = PULP_Nodes_Graph[i-1].weights_dimension_L3 + int(weights_dim*factor_ch_out/2)
                     else:
-                        PULP_Nodes_Graph[i].weights_dimension_L3 = int(weights_dim*factor_ch_out/2)                    
+                        PULP_Nodes_Graph[i].weights_dimension_L3 = int(weights_dim*factor_ch_out/2)
             else:
                 PULP_Nodes_Graph[i].weights_dimension_L3 = PULP_Nodes_Graph[i-1].weights_dimension_L3
             PULP_Nodes_Graph[i].input_activation_dimensions = int(in_dim2*BitIn/8)
@@ -293,14 +295,14 @@ class Model_deployment():
                 MAC_total += nodes_to_deploy.MACs
         return PULP_Nodes_Graph, Layers_L3_input_act, Layers_L3_output_act, Layers_L3_weights, name_layer_list, name_list, MAC_total
 
-    def generate_intermediate_activations(self, PULP_Nodes_Graph, 
-                                        load_dir, 
-                                        number_of_deployed_layers, 
+    def generate_intermediate_activations(self, PULP_Nodes_Graph,
+                                        load_dir,
+                                        number_of_deployed_layers,
                                         check_layer,
                                         weights_to_write):
         ######################################################################################
         ###### SECTION 4: GENERATE CHECKSUM BY USING WEIGHT AND OUT_LAYER{i}.TXT FILES  ######
-        ######################################################################################        
+        ######################################################################################
         try:
             x_in = pd.read_csv(os.path.join(load_dir, 'input.txt'))
             x_in = x_in.values[:, 0].astype(int)
@@ -370,8 +372,8 @@ class Model_deployment():
                             fc_frequency = 100000000,
                             cl_frequency = 100000000,
                             BitActivation = 32,
-                            sdk='gap_sdk', 
-                            backend='MCU', 
+                            sdk='gap_sdk',
+                            backend='MCU',
                             dma_parallelization='8-cores',
                             number_of_clusters = 1,
                             optional = 'auto',
@@ -385,17 +387,17 @@ class Model_deployment():
         formatter = logging.Formatter('%(asctime)s - %(message)s')
         fileh.setFormatter(formatter)
         fileh.setLevel(logging.DEBUG)
-        log = logging.getLogger() 
+        log = logging.getLogger()
         for hdlr in log.handlers[:]:
             log.removeHandler(hdlr)
         log.addHandler(fileh)
         print("Creating tiling profiling in Tiling_profling.log")
         # tiling of all the layers. Both tiling and layer generation
-        PULP_Nodes_Graph, num_L3_input_tile, num_L3_output_tile, num_L3_weight_tile, name_layer_list, name_list, MAC_total = self.create_layers_tiling(PULP_Nodes_Graph, 
-            number_of_deployed_layers, 
-            L1_dimension, 
-            l2_buffer_size, 
-            BitActivation,              
+        PULP_Nodes_Graph, num_L3_input_tile, num_L3_output_tile, num_L3_weight_tile, name_layer_list, name_list, MAC_total = self.create_layers_tiling(PULP_Nodes_Graph,
+            number_of_deployed_layers,
+            L1_dimension,
+            l2_buffer_size,
+            BitActivation,
             performance_single_layer,
             sdk,
             backend,
@@ -418,9 +420,9 @@ class Model_deployment():
         # compute the checksums for intermediate activations checking
 
         if 'Check' in verbose_level or 'Last' in verbose_level:
-            PULP_Nodes_Graph, class_out = self.generate_intermediate_activations(PULP_Nodes_Graph, 
-                load_dir, 
-                number_of_deployed_layers, 
+            PULP_Nodes_Graph, class_out = self.generate_intermediate_activations(PULP_Nodes_Graph,
+                load_dir,
+                number_of_deployed_layers,
                 check_layer,
                 weights_to_write)
         else:

@@ -4,7 +4,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -51,7 +51,9 @@ def print_template_layer(x, y_gold, W,
                          sdk = 'gap_sdk',
                          backend = 'MCU',
                          number_of_clusters = 1,
-                         dma_parallelization = '8-cores'
+                         dma_parallelization = '8-cores',
+                         signed_input = False,
+                         signed_output = False
                          ):
     # Generate the Layer management c file.
     if type_data == 'float':
@@ -126,6 +128,9 @@ def print_template_layer(x, y_gold, W,
     tk['padding_left'] = padding_left
     tk['padding_right'] = padding_right
     tk['stride'] = stride
+    # signedness
+    tk['signed_input'] = signed_input
+    tk['signed_output'] = signed_output
     # x parameters
     tk['x_h'] = h_in
     tk['x_w'] = w_in
@@ -166,7 +171,7 @@ def print_template_layer(x, y_gold, W,
     tk['fs1'] = fs1
     tk['fs2'] = fs2
     tk['W_data_size_byte'] = ds_W
-    tk['W_tile_size_nof'] = tile_n_out 
+    tk['W_tile_size_nof'] = tile_n_out
     if tk['has_bias'] == 1:
         tk['b_size_byte'] = int(math.ceil(n_out * ds_W / 8.0))
     else:
@@ -184,7 +189,7 @@ def print_template_layer(x, y_gold, W,
     if DW == 0:
         tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))
     else:
-        tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))        
+        tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))
     tk['W_stride_hw_byte'] = int(math.ceil(tk['nif'] * ds_W / 8.0))
     tk['W_tile_nif_byte'] = int(math.ceil(tk['W_tile_size_nif'] * ds_W / 8.0))
     tk['W_tile_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
@@ -270,7 +275,7 @@ def print_template_layer(x, y_gold, W,
     if conv_order == 'PULP-NN-MAX' or conv_order == 'PULP-NN-ADD':
         W_buffer_size = 0
     # l1 parameters
-    
+
     if type_data == 'float':
         x_buffer_size += 16 ##### FIX TO CHECK #######
     tk['l1_x_offset'] = 0
@@ -409,7 +414,7 @@ def print_template_layer(x, y_gold, W,
         save_string = './application/DORY_network/src/main.c'
         with open(save_string, "w") as f:
             f.write(s)
-        tk['build_layers'] = os.listdir('./application/DORY_network/src/') 
+        tk['build_layers'] = os.listdir('./application/DORY_network/src/')
         tk['platform'] = 'GAP8'
         tmpl = Template(filename=root+f"/Templates/{backend}/Makefile_template_L2")
         s = tmpl.render(**tk)
