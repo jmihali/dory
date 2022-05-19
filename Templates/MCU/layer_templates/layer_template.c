@@ -401,15 +401,15 @@ void ${func_name}(
   % elif flag_DW == 0 and optional_type == '8bit' and ('Gemm' in func_name or 'MatMul' in func_name):
     pulp_nn_linear(
   % elif flag_DW == 0 and 'mixed-sw' in optional_type  and ('Conv' in func_name):
-    pulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
+    pulp_nn_conv_${'i' if signed_input else 'u'}${x_data_size_byte}_${'i' if signed_output else 'u'}${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed-hw' in optional_type  and ('Conv' in func_name):
-    xpulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
+    xpulp_nn_conv_${'i' if signed_input else 'u'}${x_data_size_byte}_${'i' if signed_output else 'u'}${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 0 and '1D_Conv' in optional_type and ('Conv' in func_name):
-    xpulp_nn_conv1d_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
+    xpulp_nn_conv1d_${'i' if signed_input else 'u'}${x_data_size_byte}_${'i' if signed_output else 'u'}${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name) and y_data_size_byte == 32:
     ${"x" if 'hw' in optional_type else ""}pulp_nn_linear_u${x_data_size_byte}_i${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name):
-    pulp_nn_linear_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
+    pulp_nn_linear_${'i' if signed_input else 'u'}${x_data_size_byte}_${'i' if signed_output else 'u'}${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 1 and optional_type == '8bit' and fs1 == 3 and fs2 == 3 and stride==1:
     pulp_nn_depthwise_generic(
   % elif flag_DW == 1 and optional_type == '8bit' and fs1*fs2 < 4:
@@ -417,9 +417,9 @@ void ${func_name}(
   % elif flag_DW == 1 and optional_type == '8bit':
     pulp_nn_depthwise_generic(
   % elif flag_DW == 1 and optional_type == 'mixed-sw':
-    pulp_nn_depthwise_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
+    pulp_nn_depthwise_${'i' if signed_input else 'u'}${x_data_size_byte}_${'i' if signed_output else 'u'}${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 1 and optional_type == 'mixed-hw':
-    xpulp_nn_depthwise_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
+    xpulp_nn_depthwise_${'i' if signed_input else 'u'}${x_data_size_byte}_${'i' if signed_output else 'u'}${y_data_size_byte}_i${W_data_size_byte}(
   % endif
   % if 'Gemm' in func_name or 'MatMul' in func_name:
       x, 0, y, W,

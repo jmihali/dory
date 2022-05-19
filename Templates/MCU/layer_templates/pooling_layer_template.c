@@ -220,15 +220,15 @@ void ${func_name}(
 // aggiungere padding su tutti i lati, acc_out, and filter asymettric
   % if 'Max' in optional:
     % if optional_type == 'mixed-sw':
-    pulp_nn_maxpool_u${y_data_size_byte}(
+    pulp_nn_maxpool_${'i' if signed_output else 'u'}${y_data_size_byte}(
     % elif optional_type == 'mixed-hw':
-    xpulp_nn_maxpool_u${y_data_size_byte}(
+    xpulp_nn_maxpool_${'i' if signed_output else 'u'}${y_data_size_byte}(
     % else:
     pulp_nn_maxpool(
     % endif
   % else:
     % if 'mixed' in optional_type:
-    ${"x" if "hw" in optional_type else ""}pulp_nn_avgpool_u${x_data_size_byte}_u${y_data_size_byte}(
+    ${"x" if "hw" in optional_type else ""}pulp_nn_avgpool_${'i' if signed_input else 'u'}${x_data_size_byte}_${'i' if signed_output else 'u'}${y_data_size_byte}(
     % else:
     pulp_nn_avgpool(
     % endif
