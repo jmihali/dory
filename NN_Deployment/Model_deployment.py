@@ -330,8 +330,15 @@ class Model_deployment():
                 x_in[x_in > (2**8 - 1)] = 0
                 x_in = torch.round(x_in)
                 x_in = x_in.flatten().numpy().astype(int)
-            for i, _ in enumerate(x_in):
-                x_in[i] = np.uint8(x_in[i])
+            if PULP_Nodes_Graph[0].signed_input:
+                for i, _ in enumerate(x_in):
+                    if x_in[i] < 0:
+                        x_in[i] = np.uint8(2**BitIn + x_in[i])
+                    else:
+                        x_in[i] = np.uint8(x_in[i])
+            else:
+                for i, _ in enumerate(x_in):
+                    x_in[i] = np.uint8(x_in[i])
             Input_compressed = []
             z = 0
             import copy
@@ -361,8 +368,15 @@ class Model_deployment():
                 X_in = X_in.values[:, 0].astype(int)
                 if f == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
                     class_out = int(np.where(X_in == np.max(X_in))[0][0])
-                for i, _ in enumerate(X_in):
-                    X_in[i] = np.uint8(X_in[i])
+                if nodes_to_deploy.signed_output:
+                    for i, _ in enumerate(X_in):
+                        if X_in[i] < 0:
+                            X_in[i] = np.uint8(2**BitOut + X_in[i])
+                        else:
+                            X_in[i] = np.uint8(X_in[i])
+                else:
+                    for i, _ in enumerate(X_in):
+                        X_in[i] = np.uint8(X_in[i])
                 Input_compressed = []
                 z = 0
                 import copy
