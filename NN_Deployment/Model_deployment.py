@@ -161,7 +161,9 @@ class Model_deployment():
                               backend = backend,
                               dma_parallelization = dma_parallelization,
                               number_of_clusters = number_of_clusters,
-                              dilation=nodes_to_deploy.dilations if 'Conv1D' in layer else 1)
+                              dilation=nodes_to_deploy.dilations if 'Conv1D' in layer else 1,
+                              signed_input = nodes_to_deploy.signed_input,
+                              signed_output = nodes_to_deploy.signed_output)
             str_l = 'ch_in' + str(nodes_to_deploy.ch_in) + 'ch_out' + str(nodes_to_deploy.ch_out) + 'groups' + str(
                 nodes_to_deploy.group) + 'dim_image' + str(nodes_to_deploy.input_dim[1],) + 'pads' + ''.join([str(x) for x in nodes_to_deploy.pads]) +'stride' + str(nodes_to_deploy.strides) + 'kernel'+ str(
                 nodes_to_deploy.kernel_shape[0]) + str(nodes_to_deploy.kernel_shape[1]) + 'BitIn' + str(BitIn) + 'BitOut' + str(BitOut) + 'BitW' + str(BitW)

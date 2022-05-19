@@ -62,6 +62,8 @@ class Tiler_Conv2D():
         self.dma_parallelization = tiler.dma_parallelization
         self.number_of_clusters = tiler.number_of_clusters
         self.dilation = tiler.dilation
+        self.signed_input = tiler.signed_input
+        self.signed_output = tiler.signed_output
 
     def get_tiling(self, X, Y, W,
                           relu,
@@ -328,7 +330,9 @@ class Tiler_Conv2D():
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
                     dma_parallelization = self.dma_parallelization,
-                    dilation=self.dilation)
+                    dilation=self.dilation,
+                    signed_input=self.signed_input,
+                    signed_output=self.signed_output)
             else:
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W,
@@ -355,7 +359,9 @@ class Tiler_Conv2D():
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
                     dma_parallelization = self.dma_parallelization,
-                    dilation=self.dilation)
+                    dilation=self.dilation,
+                    signed_input=self.signed_input,
+                    signed_output=self.signed_output)
             if (p_top + p_bottom) > 0 and (factor_h_in > 1 or factor_h_out > 1):
                 tiling = self.get_tiling_conv2d_like(
                     DW,
@@ -399,7 +405,9 @@ class Tiler_Conv2D():
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
                     dma_parallelization = self.dma_parallelization,
-                    dilation=self.dilation)
+                    dilation=self.dilation,
+                    signed_input=self.signed_input,
+                    signed_output=self.signed_output)
                 if out_dim2 > out_dim1:
                     out_dim1 = out_dim2
                 h_in_last = h_in
@@ -463,7 +471,9 @@ class Tiler_Conv2D():
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
                     dma_parallelization = self.dma_parallelization,
-                    dilation=self.dilation)
+                    dilation=self.dilation,
+                    signed_input=self.signed_input,
+                    signed_output=self.signed_output)
                 if out_dim2 > out_dim1:
                     out_dim1 = out_dim2
                 name_include.append(name + '_p_t')

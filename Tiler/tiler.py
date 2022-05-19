@@ -46,7 +46,7 @@ import sys
 
 class Tiler():
     # Class to generate the Tiling of the layer.
-    def __init__(self, module, out_ch, filter_size, stride, padding, groups, x_shape, L1_buffer, L2_buffer, platform, chip, test_location, BitIn, BitW, BitOut, BitActivation, optional_type, sdk, backend, dma_parallelization, number_of_clusters, dilation):
+    def __init__(self, module, out_ch, filter_size, stride, padding, groups, x_shape, L1_buffer, L2_buffer, platform, chip, test_location, BitIn, BitW, BitOut, BitActivation, optional_type, sdk, backend, dma_parallelization, number_of_clusters, dilation, signed_input, signed_output):
         self.module = module
         self.out_ch = out_ch
         self.filter_size = filter_size
@@ -69,6 +69,8 @@ class Tiler():
         self.dma_parallelization = dma_parallelization
         self.number_of_clusters = number_of_clusters
         self.dilation = dilation
+        self.signed_input = signed_input
+        self.signed_output = signed_output
 
     def get_tiling(self, **kwargs):
         # This function is used to create the tiling of either a convolutional layer or a fully connected or a pooling layer.

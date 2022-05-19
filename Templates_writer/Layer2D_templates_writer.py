@@ -52,7 +52,9 @@ def print_template_layer(x, y_gold, W,
                          backend = 'MCU',
                          number_of_clusters = 1,
                          dma_parallelization = '8-cores',
-                         dilation = 1
+                         dilation = 1,
+                         signed_input = False,
+                         signed_output = False
                          ):
     if optional=='1D_Conv':
         assert not DW, 'depthwise conv1d not supported'
@@ -130,6 +132,9 @@ def print_template_layer(x, y_gold, W,
     tk['padding_left'] = padding_left
     tk['padding_right'] = padding_right
     tk['stride'] = stride
+    # signedness
+    tk['signed_input'] = signed_input
+    tk['signed_output'] = signed_output
     # x parameters
     tk['x_h'] = h_in
     tk['x_w'] = w_in
